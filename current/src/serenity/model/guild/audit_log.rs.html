@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/model/guild/audit_log.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>audit_log.rs - source</title><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../../storage.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg">
 <link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../serenity/index.html'><div class='logo-container rust-logo'><img src='../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><span class="help-button">?</span>
+<link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../../../serenity/index.html'><div class='logo-container rust-logo'><img src='../../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
                 <a id="settings-menu" href="../../../../settings.html"><img src="../../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
@@ -480,29 +480,14 @@
 <span id="477">477</span>
 <span id="478">478</span>
 <span id="479">479</span>
-<span id="480">480</span>
-<span id="481">481</span>
-<span id="482">482</span>
-<span id="483">483</span>
-<span id="484">484</span>
-<span id="485">485</span>
-<span id="486">486</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">internal</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{
-    <span class="self">self</span>,
-    <span class="ident">Deserialize</span>,
-    <span class="ident">Deserializer</span>,
-    <span class="ident">MapAccess</span>,
-    <span class="ident">Visitor</span>
-};
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">collections</span>::<span class="ident">HashMap</span>, <span class="ident">fmt</span>, <span class="ident">mem</span>::<span class="ident">transmute</span>};
+
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="self">self</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">MapAccess</span>, <span class="ident">Visitor</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serializer</span>;
+
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">internal</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">model</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">std</span>::{
-    <span class="ident">collections</span>::<span class="ident">HashMap</span>,
-    <span class="ident">mem</span>::<span class="ident">transmute</span>,
-    <span class="ident">fmt</span>,
-};
 
 <span class="doccomment">/// Determines to what entity an action was used on.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
@@ -720,7 +705,6 @@
     }
 }
 
-
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="attribute">#[<span class="ident">non_exhaustive</span>]</span>
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">u8</span>)]</span>
@@ -742,34 +726,35 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Change</span> {
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;key&quot;</span>)]</span> <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;key&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">String</span>,
     <span class="comment">// TODO: Change these to an actual type.</span>
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;old_value&quot;</span>)]</span> <span class="kw">pub</span> <span class="ident">old</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;new_value&quot;</span>)]</span> <span class="kw">pub</span> <span class="ident">new</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;old_value&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">old</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;new_value&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="ident">new</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">non_exhaustive</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AuditLogs</span> {
     <span class="kw">pub</span> <span class="ident">entries</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">AuditLogEntryId</span>, <span class="ident">AuditLogEntry</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">webhooks</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Webhook</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">users</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">User</span><span class="op">&gt;</span>,
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">_nonexhaustive</span>: (),
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
+<span class="attribute">#[<span class="ident">non_exhaustive</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AuditLogEntry</span> {
     <span class="doccomment">/// Determines to what entity an [`action`] was used on.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// [`action`]: #structfield.action</span>
+    <span class="doccomment">/// [`action`]: Self::action</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;option_u64_handler&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">target_id</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
     <span class="doccomment">/// Determines what action was done on a [`target_id`]</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// [`target_id`]: #structfield.target_id</span>
-    <span class="attribute">#[<span class="ident">serde</span>(
-        <span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;action_handler&quot;</span>,
-        <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;action_type&quot;</span>
-    )]</span>
+    <span class="doccomment">/// [`target_id`]: Self::target_id</span>
+    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;action_handler&quot;</span>, <span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;action_type&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="ident">action</span>: <span class="ident">Action</span>,
     <span class="doccomment">/// What was the reasoning by doing an action on a target? If there was one.</span>
     <span class="kw">pub</span> <span class="ident">reason</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
@@ -781,11 +766,10 @@
     <span class="kw">pub</span> <span class="ident">id</span>: <span class="ident">AuditLogEntryId</span>,
     <span class="doccomment">/// Some optional data assosiated with this entry.</span>
     <span class="kw">pub</span> <span class="ident">options</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Options</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">_nonexhaustive</span>: (),
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>)]</span>
+<span class="attribute">#[<span class="ident">non_exhaustive</span>]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Options</span> {
     <span class="doccomment">/// Number of days after which inactive members were kicked.</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>, <span class="ident">with</span> <span class="op">=</span> <span class="string">&quot;option_u64_handler&quot;</span>)]</span>
@@ -808,8 +792,6 @@
     <span class="doccomment">/// Name of the role if type is &quot;role&quot;</span>
     <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">default</span>)]</span>
     <span class="kw">pub</span> <span class="ident">role_name</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
-    <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">skip</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">_nonexhaustive</span>: (),
 }
 
 <span class="kw">mod</span> <span class="ident">option_u64_handler</span> {
@@ -825,7 +807,10 @@
                 <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;an optional integer or a string with a valid number inside&quot;</span>)
             }
 
-            <span class="kw">fn</span> <span class="ident">visit_some</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">StdResult</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+            <span class="kw">fn</span> <span class="ident">visit_some</span><span class="op">&lt;</span><span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span><span class="op">&gt;</span>(
+                <span class="self">self</span>,
+                <span class="ident">deserializer</span>: <span class="ident">D</span>,
+            ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">StdResult</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
                 <span class="ident">deserializer</span>.<span class="ident">deserialize_any</span>(<span class="ident">OptionU64Visitor</span>)
             }
 
@@ -888,10 +873,7 @@
         <span class="ident">de</span>.<span class="ident">deserialize_any</span>(<span class="ident">ActionVisitor</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serializer</span><span class="op">&gt;</span>(
-        <span class="ident">action</span>: <span class="kw-2">&amp;</span><span class="ident">Action</span>,
-        <span class="ident">serializer</span>: <span class="ident">S</span>,
-    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">StdResult</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Serializer</span><span class="op">&gt;</span>(<span class="ident">action</span>: <span class="kw-2">&amp;</span><span class="ident">Action</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">StdResult</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="ident">serializer</span>.<span class="ident">serialize_u8</span>(<span class="ident">action</span>.<span class="ident">num</span>())
     }
 }
@@ -900,10 +882,13 @@
         <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Deserialize</span>)]</span>
         <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">field_identifier</span>)]</span>
         <span class="kw">enum</span> <span class="ident">Field</span> {
-            <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;audit_log_entries&quot;</span>)]</span> <span class="ident">Entries</span>,
-            <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;webhooks&quot;</span>)]</span> <span class="ident">Webhooks</span>,
-            <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;users&quot;</span>)]</span> <span class="ident">Users</span>,
-            <span class="comment">// TODO(field added by Discord, undocumented) #[serde(rename = &quot;integrations&quot;)] Integrations,</span>
+            <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;audit_log_entries&quot;</span>)]</span>
+            <span class="ident">Entries</span>,
+            <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;webhooks&quot;</span>)]</span>
+            <span class="ident">Webhooks</span>,
+            <span class="attribute">#[<span class="ident">serde</span>(<span class="ident">rename</span> <span class="op">=</span> <span class="string">&quot;users&quot;</span>)]</span>
+            <span class="ident">Users</span>,
+            <span class="comment">/* TODO(field added by Discord, undocumented) #[serde(rename = &quot;integrations&quot;)] Integrations, */</span>
         }
 
         <span class="kw">struct</span> <span class="ident">EntriesVisitor</span>;
@@ -928,32 +913,34 @@
                             }
 
                             <span class="ident">audit_log_entries</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">map</span>.<span class="ident">next_value</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">AuditLogEntry</span><span class="op">&gt;</span><span class="op">&gt;</span>()<span class="question-mark">?</span>);
-                        }
+                        },
                         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">Field</span>::<span class="ident">Webhooks</span>)) <span class="op">=</span><span class="op">&gt;</span> {
                             <span class="kw">if</span> <span class="ident">webhooks</span>.<span class="ident">is_some</span>() {
                                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">duplicate_field</span>(<span class="string">&quot;webhooks&quot;</span>));
                             }
 
                             <span class="ident">webhooks</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">map</span>.<span class="ident">next_value</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Webhook</span><span class="op">&gt;</span><span class="op">&gt;</span>()<span class="question-mark">?</span>);
-                        }
+                        },
                         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">Field</span>::<span class="ident">Users</span>)) <span class="op">=</span><span class="op">&gt;</span> {
                             <span class="kw">if</span> <span class="ident">users</span>.<span class="ident">is_some</span>() {
                                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">duplicate_field</span>(<span class="string">&quot;users&quot;</span>));
                             }
 
                             <span class="ident">users</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">map</span>.<span class="ident">next_value</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">User</span><span class="op">&gt;</span><span class="op">&gt;</span>()<span class="question-mark">?</span>);
-                        }
+                        },
                         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">break</span>, <span class="comment">// No more keys</span>
-                        <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">if</span> <span class="ident">e</span>.<span class="ident">to_string</span>().<span class="ident">contains</span>(<span class="string">&quot;unknown field&quot;</span>) {
-                            <span class="comment">// e is of type &lt;V as MapAccess&gt;::Error, which is a macro-defined trait, ultimately</span>
-                            <span class="comment">// implemented by serde::de::value::Error. Seeing as every error is a simple string and not</span>
-                            <span class="comment">// using a proper Error num, the best we can do here is to check if the string contains</span>
-                            <span class="comment">// this error. This was added because Discord randomly started sending new fields.</span>
-                            <span class="comment">// But no JSON deserializer should ever error over this.</span>
-                            <span class="ident">map</span>.<span class="ident">next_value</span>::<span class="op">&lt;</span><span class="ident">serde_json</span>::<span class="ident">Value</span><span class="op">&gt;</span>()<span class="question-mark">?</span>; <span class="comment">// Actually read the value to avoid syntax errors</span>
-                        } <span class="kw">else</span> {
-                            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>)
-                        }
+                        <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                            <span class="kw">if</span> <span class="ident">e</span>.<span class="ident">to_string</span>().<span class="ident">contains</span>(<span class="string">&quot;unknown field&quot;</span>) {
+                                <span class="comment">// e is of type &lt;V as MapAccess&gt;::Error, which is a macro-defined trait, ultimately</span>
+                                <span class="comment">// implemented by serde::de::value::Error. Seeing as every error is a simple string and not</span>
+                                <span class="comment">// using a proper Error num, the best we can do here is to check if the string contains</span>
+                                <span class="comment">// this error. This was added because Discord randomly started sending new fields.</span>
+                                <span class="comment">// But no JSON deserializer should ever error over this.</span>
+                                <span class="ident">map</span>.<span class="ident">next_value</span>::<span class="op">&lt;</span><span class="ident">serde_json</span>::<span class="ident">Value</span><span class="op">&gt;</span>()<span class="question-mark">?</span>; <span class="comment">// Actually read the value to avoid syntax errors</span>
+                            } <span class="kw">else</span> {
+                                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>);
+                            }
+                        },
                     }
                 }
 
@@ -965,7 +952,6 @@
                         .<span class="ident">collect</span>(),
                     <span class="ident">webhooks</span>: <span class="ident">webhooks</span>.<span class="ident">unwrap</span>(),
                     <span class="ident">users</span>: <span class="ident">users</span>.<span class="ident">unwrap</span>(),
-                    <span class="ident">_nonexhaustive</span>: (),
                 })
             }
         }
@@ -975,4 +961,5 @@
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../../";window.currentCrate = "serenity";</script><script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script><script defer src="../../../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="serenity"></div>
+    <script src="../../../../main.js"></script><script src="../../../../source-script.js"></script><script src="../../../../source-files.js"></script><script defer src="../../../../search-index.js"></script></body></html>
