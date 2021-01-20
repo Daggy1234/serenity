@@ -1,10 +1,11 @@
+use async_tungstenite::tungstenite::Message;
+use futures::channel::mpsc::{TrySendError, UnboundedSender as Sender};
+
+use super::{ChunkGuildFilter, ShardClientMessage, ShardRunnerMessage};
+#[cfg(feature = "collector")]
+use crate::collector::{MessageFilter, ReactionFilter};
 use crate::gateway::InterMessage;
 use crate::model::prelude::*;
-use super::{ShardClientMessage, ShardRunnerMessage, ChunkGuildFilter};
-use futures::channel::mpsc::{UnboundedSender as Sender, TrySendError};
-use async_tungstenite::tungstenite::Message;
-#[cfg(feature = "collector")]
-use crate::collector::{ReactionFilter, MessageFilter};
 
 /// A lightweight wrapper around an mpsc sender.
 ///
@@ -12,9 +13,9 @@ use crate::collector::{ReactionFilter, MessageFilter};
 /// [`ShardRunner`]. This can be used for actions such as setting the activity
 /// via [`set_activity`] or shutting down via [`shutdown_clean`].
 ///
-/// [`ShardRunner`]: struct.ShardRunner.html
-/// [`set_activity`]: #method.set_activity
-/// [`shutdown_clean`]: #method.shutdown_clean
+/// [`ShardRunner`]: super::ShardRunner
+/// [`set_activity`]: Self::set_activity
+/// [`shutdown_clean`]: Self::shutdown_clean
 #[derive(Clone, Debug)]
 pub struct ShardMessenger {
     pub(crate) tx: Sender<InterMessage>,
@@ -25,7 +26,7 @@ impl ShardMessenger {
     ///
     /// If you are using the [`Client`], you do not need to do this.
     ///
-    /// [`Client`]: ../../struct.Client.html
+    /// [`Client`]: crate::Client
     #[inline]
     pub fn new(tx: Sender<InterMessage>) -> Self {
         Self {
@@ -91,10 +92,6 @@ impl ShardMessenger {
     /// #     Ok(())
     /// # }
     /// ```
-    ///
-    /// [`Event::GuildMembersChunk`]: ../../../model/event/enum.Event.html#variant.GuildMembersChunk
-    /// [`Guild`]: ../../../model/guild/struct.Guild.html
-    /// [`Member`]: ../../../model/guild/struct.Member.html
     pub fn chunk_guild(
         &self,
         guild_id: GuildId,
@@ -205,9 +202,9 @@ impl ShardMessenger {
     /// # }
     /// ```
     ///
-    /// [`DoNotDisturb`]: ../../../model/user/enum.OnlineStatus.html#variant.DoNotDisturb
-    /// [`Invisible`]: ../../../model/user/enum.OnlineStatus.html#variant.Invisible
-    /// [`Offline`]: ../../../model/user/enum.OnlineStatus.html#variant.Offline
+    /// [`DoNotDisturb`]: OnlineStatus::DoNotDisturb
+    /// [`Invisible`]: OnlineStatus::Invisible
+    /// [`Offline`]: OnlineStatus::Offline
     pub fn set_status(&self, mut online_status: OnlineStatus) {
         if online_status == OnlineStatus::Offline {
             online_status = OnlineStatus::Invisible;
@@ -230,15 +227,14 @@ impl ShardMessenger {
     /// wanting to, for example, send a presence update, prefer the usage of
     /// the [`set_presence`] method.
     ///
-    /// [`set_presence`]: #method.set_presence
+    /// [`set_presence`]: Self::set_presence
     pub fn websocket_message(&self, message: Message) {
         let _ = self.send_to_shard(ShardRunnerMessage::Message(message));
     }
 
     /// Sends a message to the shard.
     #[inline]
-    pub fn send_to_shard(&self, msg: ShardRunnerMessage)
-        -> Result<(), TrySendError<InterMessage>> {
+    pub fn send_to_shard(&self, msg: ShardRunnerMessage) -> Result<(), TrySendError<InterMessage>> {
         self.tx.unbounded_send(InterMessage::Client(Box::new(ShardClientMessage::Runner(msg))))
     }
 

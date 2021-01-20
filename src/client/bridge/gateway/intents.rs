@@ -15,7 +15,7 @@ pub struct GatewayIntents {
     /// # Note
     /// Do not modify this yourself; use the provided methods.
     /// Do the same when creating, unless you're absolutely certain that you're giving valid intents flags.
-    pub bits: u64
+    pub bits: u64,
 }
 
 __impl_bitflags! {
@@ -122,7 +122,9 @@ __impl_bitflags! {
 }
 
 impl Default for GatewayIntents {
-    fn default() -> Self { Self::empty() }
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl<'de> Deserialize<'de> for GatewayIntents {
@@ -168,7 +170,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILDS] intent.
     ///
-    /// [GUILDS]: #associatedconstant.GUILDS
+    /// [GUILDS]: Self::GUILDS
     pub fn guilds(self) -> bool {
         self.contains(Self::GUILDS)
     }
@@ -176,7 +178,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_MEMBERS] intent.
     ///
-    /// [GUILD_MEMBERS]: #associatedconstant.GUILD_MEMBERS
+    /// [GUILD_MEMBERS]: Self::GUILD_MEMBERS
     pub fn guild_members(self) -> bool {
         self.contains(Self::GUILD_MEMBERS)
     }
@@ -184,7 +186,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_BANS] intent.
     ///
-    /// [GUILD_BANS]: #associatedconstant.GUILD_BANS
+    /// [GUILD_BANS]: Self::GUILD_BANS
     pub fn guild_bans(self) -> bool {
         self.contains(Self::GUILD_BANS)
     }
@@ -192,7 +194,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_EMOJIS] intent.
     ///
-    /// [GUILD_EMOJIS]: #associatedconstant.GUILD_EMOJIS
+    /// [GUILD_EMOJIS]: Self::GUILD_EMOJIS
     pub fn guild_emojis(self) -> bool {
         self.contains(Self::GUILD_EMOJIS)
     }
@@ -200,7 +202,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_INTEGRATIONS] intent.
     ///
-    /// [GUILD_INTEGRATIONS]: #associatedconstant.GUILD_INTEGRATIONS
+    /// [GUILD_INTEGRATIONS]: Self::GUILD_INTEGRATIONS
     pub fn guild_integrations(self) -> bool {
         self.contains(Self::GUILD_INTEGRATIONS)
     }
@@ -208,7 +210,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_WEBHOOKS] intent.
     ///
-    /// [GUILD_WEBHOOKS]: #associatedconstant.GUILD_WEBHOOKS
+    /// [GUILD_WEBHOOKS]: Self::GUILD_WEBHOOKS
     pub fn guild_webhooks(self) -> bool {
         self.contains(Self::GUILD_WEBHOOKS)
     }
@@ -216,7 +218,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_INVITES] intent.
     ///
-    /// [GUILD_INVITES]: #associatedconstant.GUILD_INVITES
+    /// [GUILD_INVITES]: Self::GUILD_INVITES
     pub fn guild_invites(self) -> bool {
         self.contains(Self::GUILD_INVITES)
     }
@@ -224,7 +226,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_VOICE_STATES] intent.
     ///
-    /// [GUILD_VOICE_STATES]: #associatedconstant.GUILD_VOICE_STATES
+    /// [GUILD_VOICE_STATES]: Self::GUILD_VOICE_STATES
     pub fn guild_voice_states(self) -> bool {
         self.contains(Self::GUILD_VOICE_STATES)
     }
@@ -232,7 +234,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_PRESENCES] intent.
     ///
-    /// [GUILD_PRESENCES]: #associatedconstant.GUILD_PRESENCES
+    /// [GUILD_PRESENCES]: Self::GUILD_PRESENCES
     pub fn guild_presences(self) -> bool {
         self.contains(Self::GUILD_PRESENCES)
     }
@@ -240,7 +242,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_MESSAGE_REACTIONS] intent.
     ///
-    /// [GUILD_MESSAGE_REACTIONS]: #associatedconstant.GUILD_MESSAGE_REACTIONS
+    /// [GUILD_MESSAGE_REACTIONS]: Self::GUILD_MESSAGE_REACTIONS
     pub fn guild_message_reactions(self) -> bool {
         self.contains(Self::GUILD_MESSAGE_REACTIONS)
     }
@@ -248,7 +250,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [GUILD_MESSAGE_TYPING] intent.
     ///
-    /// [GUILD_MESSAGE_TYPING]: #associatedconstant.GUILD_MESSAGE_TYPING
+    /// [GUILD_MESSAGE_TYPING]: Self::GUILD_MESSAGE_TYPING
     pub fn guild_message_typing(self) -> bool {
         self.contains(Self::GUILD_MESSAGE_TYPING)
     }
@@ -256,7 +258,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [DIRECT_MESSAGES] intent.
     ///
-    /// [DIRECT_MESSAGES]: #associatedconstant.DIRECT_MESSAGES
+    /// [DIRECT_MESSAGES]: Self::DIRECT_MESSAGES
     pub fn direct_messages(self) -> bool {
         self.contains(Self::DIRECT_MESSAGES)
     }
@@ -264,7 +266,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [DIRECT_MESSAGE_REACTIONS] intent.
     ///
-    /// [DIRECT_MESSAGE_REACTIONS]: #associatedconstant.DIRECT_MESSAGE_REACTIONS
+    /// [DIRECT_MESSAGE_REACTIONS]: Self::DIRECT_MESSAGE_REACTIONS
     pub fn direct_message_reactions(self) -> bool {
         self.contains(Self::DIRECT_MESSAGE_REACTIONS)
     }
@@ -272,7 +274,7 @@ impl GatewayIntents {
     /// Shorthand for checking that the set of intents contains the
     /// [DIRECT_MESSAGE_TYPING] intent.
     ///
-    /// [DIRECT_MESSAGE_TYPING]: #associatedconstant.DIRECT_MESSAGE_TYPING
+    /// [DIRECT_MESSAGE_TYPING]: Self::DIRECT_MESSAGE_TYPING
     pub fn direct_message_typing(self) -> bool {
         self.contains(Self::DIRECT_MESSAGE_TYPING)
     }

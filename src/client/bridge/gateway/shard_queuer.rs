@@ -1,21 +1,25 @@
-use crate::gateway::{InterMessage, Shard};
-use crate::internal::prelude::*;
-use crate::CacheAndHttp;
-use tokio::sync::{Mutex, RwLock};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
+
 use futures::{
+    channel::mpsc::{UnboundedReceiver as Receiver, UnboundedSender as Sender},
     StreamExt,
-    channel::mpsc::{UnboundedSender as Sender, UnboundedReceiver as Receiver},
 };
-use tokio::time::{delay_for, timeout, Duration, Instant};
-use crate::client::{EventHandler, RawEventHandler};
+use tokio::sync::{Mutex, RwLock};
+#[cfg(all(feature = "tokio_compat", not(feature = "tokio")))]
+use tokio::time::delay_for as sleep;
+#[cfg(feature = "tokio")]
+use tokio::time::sleep;
+use tokio::time::{timeout, Duration, Instant};
+use tracing::{debug, info, instrument, warn};
+use typemap_rev::TypeMap;
+
 use super::{
     GatewayIntents,
-    ShardId,
     ShardClientMessage,
+    ShardId,
     ShardManagerMessage,
     ShardMessenger,
     ShardQueuerMessage,
@@ -23,14 +27,15 @@ use super::{
     ShardRunnerInfo,
     ShardRunnerOptions,
 };
-use crate::gateway::ConnectionStage;
-use tracing::{debug, info, warn, instrument};
-
-use typemap_rev::TypeMap;
 #[cfg(feature = "voice")]
 use crate::client::bridge::voice::VoiceGatewayManager;
+use crate::client::{EventHandler, RawEventHandler};
 #[cfg(feature = "framework")]
 use crate::framework::Framework;
+use crate::gateway::ConnectionStage;
+use crate::gateway::{InterMessage, Shard};
+use crate::internal::prelude::*;
+use crate::CacheAndHttp;
 
 const WAIT_BETWEEN_BOOTS_IN_SECONDS: u64 = 5;
 
@@ -44,17 +49,17 @@ pub struct ShardQueuer {
     /// A copy of [`Client::data`] to be given to runners for contextual
     /// dispatching.
     ///
-    /// [`Client::data`]: ../../struct.Client.html#structfield.data
+    /// [`Client::data`]: crate::Client::data
     pub data: Arc<RwLock<TypeMap>>,
     /// A reference to an `EventHandler`, such as the one given to the
     /// [`Client`].
     ///
-    /// [`Client`]: ../../struct.Client.html
+    /// [`Client`]: crate::Client
     pub event_handler: Option<Arc<dyn EventHandler>>,
     /// A reference to an `RawEventHandler`, such as the one given to the
     /// [`Client`].
     ///
-    /// [`Client`]: ../../struct.Client.html
+    /// [`Client`]: crate::Client
     pub raw_event_handler: Option<Arc<dyn RawEventHandler>>,
     /// A copy of the framework
     #[cfg(feature = "framework")]
@@ -66,7 +71,7 @@ pub struct ShardQueuer {
     /// A copy of the sender channel to communicate with the
     /// [`ShardManagerMonitor`].
     ///
-    /// [`ShardManagerMonitor`]: struct.ShardManagerMonitor.html
+    /// [`ShardManagerMonitor`]: super::ShardManagerMonitor
     pub manager_tx: Sender<ShardManagerMessage>,
     /// The shards that are queued for booting.
     ///
@@ -104,10 +109,7 @@ impl ShardQueuer {
     /// **Note**: This should be run in its own thread due to the blocking
     /// nature of the loop.
     ///
-    /// [`ShardQueuerMessage`]: enum.ShardQueuerMessage.html
-    /// [`ShardQueuerMessage::Shutdown`]: enum.ShardQueuerMessage.html#variant.Shutdown
-    /// [`ShardQueuerMessage::Start`]: enum.ShardQueuerMessage.html#variant.Start
-    /// [`rx`]: #structfield.rx
+    /// [`rx`]: Self::rx
     #[instrument(skip(self))]
     pub async fn run(&mut self) {
         // The duration to timeout from reads over the Rx channel. This can be
@@ -121,7 +123,7 @@ impl ShardQueuer {
                     debug!("[Shard Queuer] Received to shutdown.");
                     self.shutdown_runners().await;
 
-                    break
+                    break;
                 },
                 Ok(Some(ShardQueuerMessage::ShutdownShard(shard, code))) => {
                     debug!("[Shard Queuer] Received to shutdown shard {} with {}.", shard.0, code);
@@ -159,7 +161,7 @@ impl ShardQueuer {
 
         let to_sleep = duration - elapsed;
 
-        delay_for(to_sleep).await;
+        sleep(to_sleep).await;
     }
 
     #[instrument(skip(self))]
@@ -186,7 +188,8 @@ impl ShardQueuer {
             &self.cache_and_http.http.token,
             shard_info,
             self.intents,
-        ).await?;
+        )
+        .await?;
 
         let mut runner = ShardRunner::new(ShardRunnerOptions {
             data: Arc::clone(&self.data),

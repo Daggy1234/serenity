@@ -1,10 +1,16 @@
-use super::Delimiter;
-use crate::client::Context;
-use crate::model::{channel::Message, id::{UserId, GuildId, ChannelId}};
 use std::collections::HashSet;
+
 use futures::future::BoxFuture;
 
-type DynamicPrefixHook = for<'fut> fn(&'fut Context, &'fut Message) -> BoxFuture<'fut, Option<String>>;
+use super::Delimiter;
+use crate::client::Context;
+use crate::model::{
+    channel::Message,
+    id::{ChannelId, GuildId, UserId},
+};
+
+type DynamicPrefixHook =
+    for<'fut> fn(&'fut Context, &'fut Message) -> BoxFuture<'fut, Option<String>>;
 
 /// A configuration struct for deciding whether the framework
 /// should allow optional whitespace between prefixes, group prefixes and command names.
@@ -91,9 +97,9 @@ impl From<(bool, bool, bool)> for WithWhiteSpace {
 /// # }
 /// ```
 ///
-/// [`Client`]: ../../client/struct.Client.html
-/// [`StandardFramework`]: struct.StandardFramework.html
-/// [default implementation]: #impl-Default
+/// [`Client`]: crate::Client
+/// [`StandardFramework`]: super::StandardFramework
+/// [default implementation]: Self::default
 pub struct Configuration {
     #[doc(hidden)]
     pub allow_dm: bool,
@@ -177,7 +183,7 @@ impl Configuration {
         self
     }
 
-       /// HashSet of channels Ids where commands will be working.
+    /// HashSet of channels Ids where commands will be working.
     ///
     /// **Note**: Defaults to an empty HashSet.
     ///
@@ -283,19 +289,29 @@ impl Configuration {
         self
     }
 
-    /// Sets the prefix to respond to dynamically based on conditions.
+    /// Sets the prefix to respond to dynamically, in addition to the one
+    /// configured with [`prefix`] or [`prefixes`]. This is useful if you want
+    /// to have user configurable per-guild or per-user prefixes, such as by
+    /// fetching a guild's prefix from a database accessible via
+    /// [`Context::data`].
     ///
-    /// Return `None` to not have a special prefix for the dispatch, and to
-    /// instead use the inherited prefix.
+    /// Return `None` to not have a special prefix for the dispatch and to only
+    /// use the configured prefix from [`prefix`] or [`prefixes`].
     ///
     /// This method can be called many times to add more dynamic prefix hooks.
     ///
     /// **Note**: Defaults to no dynamic prefix check.
     ///
+    /// **Note**: If using dynamic_prefix *without* [`prefix`] or [`prefixes`],
+    /// there will still be the default framework prefix of `"~"`. You can disable
+    /// the default prefix by setting the prefix to an empty string `""` with
+    /// [`prefix`].
+    ///
     /// # Examples
     ///
-    /// If the Id of the channel is divisible by 5, return a prefix of `"!"`,
-    /// otherwise return a prefix of `"~"`.
+    /// If the Id of the channel is divisible by 5, use the prefix `"!"`,
+    /// otherwise use `"*"`. The default framework prefix `"~"` will always be
+    /// valid in addition to the one returned by dynamic_prefix.
     ///
     /// ```rust,no_run
     /// # use serenity::prelude::*;
@@ -306,10 +322,35 @@ impl Configuration {
     ///         Some(if msg.channel_id.0 % 5 == 0 {
     ///             "!"
     ///         } else {
-    ///             "~"
+    ///             "*"
     ///         }.to_string())
     ///     })));
     /// ```
+    ///
+    /// This will only use the prefix `"!"` or `"*"` depending on channel ID,
+    /// with the default prefix `"~"` disabled.
+    ///
+    /// ```rust,no_run
+    /// # use serenity::prelude::*;
+    /// use serenity::framework::StandardFramework;
+    ///
+    /// let framework = StandardFramework::new()
+    ///     .configure(|c| c
+    ///        .dynamic_prefix(|_, msg| Box::pin(async move {
+    ///             Some(if msg.channel_id.0 % 5 == 0 {
+    ///                 "!"
+    ///             } else {
+    ///                 "*"
+    ///             }.to_string())
+    ///         }))
+    ///         // This disables the default prefix "~"
+    ///         .prefix("")
+    ///     );
+    /// ```
+    ///
+    ///  [`Context::data`]: crate::client::Context::data
+    ///  [`prefix`]: Self::prefix
+    ///  [`prefixes`]: Self::prefixes
     #[inline]
     pub fn dynamic_prefix(&mut self, dynamic_prefix: DynamicPrefixHook) -> &mut Self {
         self.dynamic_prefixes.push(dynamic_prefix);
@@ -359,7 +400,7 @@ impl Configuration {
     /// nickname. It has no real meaning for your bot, and the library
     /// encourages you to ignore differentiating between the two.
     ///
-    /// [`prefix`]: #method.prefix
+    /// [`prefix`]: Self::prefix
     pub fn on_mention(&mut self, id_to_mention: Option<UserId>) -> &mut Self {
         self.on_mention = id_to_mention.map(|id| id.to_string());
 
@@ -408,6 +449,9 @@ impl Configuration {
     ///
     /// **Note**: Passing empty string `""` will set no prefix.
     ///
+    /// **Note**: This prefix will always be usable, even if there is a
+    /// [`dynamic_prefix`] configured.
+    ///
     /// # Examples
     ///
     /// Assign a basic prefix:
@@ -418,12 +462,10 @@ impl Configuration {
     /// let framework = StandardFramework::new().configure(|c| c
     ///     .prefix("!"));
     /// ```
+    ///
+    /// [`dynamic_prefix`]: Self::dynamic_prefix
     pub fn prefix(&mut self, prefix: &str) -> &mut Self {
-        self.prefixes = if prefix.is_empty() {
-            vec![]
-        } else {
-            vec![prefix.to_string()]
-        };
+        self.prefixes = if prefix.is_empty() { vec![] } else { vec![prefix.to_string()] };
 
         self
     }
@@ -432,6 +474,9 @@ impl Configuration {
     /// non-zero length.
     ///
     /// **Note**: Refer to [`prefix`] for the default value.
+    ///
+    /// **Note**: These prefixes will always be usable, even if there is a
+    /// [`dynamic_prefix`] configured.
     ///
     /// # Examples
     ///
@@ -444,14 +489,14 @@ impl Configuration {
     ///     .prefixes(vec!["!", ">", "+"]));
     /// ```
     ///
-    /// [`prefix`]: #method.prefix
+    /// [`prefix`]: Self::prefix
+    /// [`dynamic_prefix`]: Self::dynamic_prefix
     #[inline]
     pub fn prefixes<T, It>(&mut self, prefixes: It) -> &mut Self
     where
         T: ToString,
         It: IntoIterator<Item = T>,
     {
-
         self.prefixes = prefixes.into_iter().map(|p| p.to_string()).collect();
 
         self
@@ -508,15 +553,14 @@ impl Configuration {
     ///     .delimiters(vec![", ", " "]));
     /// ```
     ///
-    /// [`delimiter`]: #method.delimiter
+    /// [`delimiter`]: Self::delimiter
     pub fn delimiters<T, It>(&mut self, delimiters: It) -> &mut Self
     where
         T: Into<Delimiter>,
         It: IntoIterator<Item = T>,
     {
         self.delimiters.clear();
-        self.delimiters
-            .extend(delimiters.into_iter().map(|s| s.into()));
+        self.delimiters.extend(delimiters.into_iter().map(|s| s.into()));
 
         self
     }

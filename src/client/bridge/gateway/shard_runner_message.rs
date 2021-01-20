@@ -1,12 +1,12 @@
+use async_tungstenite::tungstenite::Message;
+
+#[cfg(feature = "collector")]
+use crate::collector::{MessageFilter, ReactionFilter};
 use crate::model::{
     gateway::Activity,
     id::{GuildId, UserId},
     user::OnlineStatus,
 };
-
-#[cfg(feature = "collector")]
-use crate::collector::{MessageFilter, ReactionFilter};
-use async_tungstenite::tungstenite::Message;
 
 #[derive(Clone, Debug)]
 pub enum ChunkGuildFilter {
@@ -27,18 +27,18 @@ pub enum ShardRunnerMessage {
     ChunkGuild {
         /// The IDs of the [`Guild`] to chunk.
         ///
-        /// [`Guild`]: ../../../model/guild/struct.Guild.html
+        /// [`Guild`]: crate::model::guild::Guild
         guild_id: GuildId,
         /// The maximum number of members to receive [`GuildMembersChunkEvent`]s
         /// for.
         ///
-        /// [`GuildMembersChunkEvent`]: ../../../model/event/struct.GuildMembersChunkEvent.html
+        /// [`GuildMembersChunkEvent`]: crate::model::event::GuildMembersChunkEvent
         limit: Option<u16>,
         /// A filter to apply to the returned members.
         filter: ChunkGuildFilter,
         /// Optional nonce to identify [`GuildMembersChunkEvent`] responses.
         ///
-        /// [`GuildMembersChunkEvent`]: ../../../model/event/struct.GuildMembersChunkEvent.html
+        /// [`GuildMembersChunkEvent`]: crate::model::event::GuildMembersChunkEvent
         nonce: Option<String>,
     },
     /// Indicates that the client is to close with the given status code and
@@ -48,7 +48,7 @@ pub enum ShardRunnerMessage {
     /// Prefer to use the [`ShardManager`] to shutdown WebSocket clients if you
     /// are intending to send a 1000 close code.
     ///
-    /// [`ShardManager`]: struct.ShardManager.html
+    /// [`ShardManager`]: super::ShardManager
     Close(u16, Option<String>),
     /// Indicates that the client is to send a custom WebSocket message.
     Message(Message),

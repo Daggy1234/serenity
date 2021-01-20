@@ -1,26 +1,20 @@
+use std::fmt::{Display, Formatter, Result as FmtResult};
+#[cfg(feature = "model")]
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
-use crate::model::prelude::*;
-use std::fmt::{
-    Display,
-    Formatter,
-    Result as FmtResult
-};
 
 #[cfg(feature = "model")]
-use crate::builder::{
-    CreateMessage,
-    EditMessage,
-    GetMessages
-};
+use crate::builder::{CreateMessage, EditMessage, GetMessages};
 #[cfg(feature = "model")]
 use crate::http::AttachmentType;
 #[cfg(feature = "http")]
 use crate::http::{Http, Typing};
-#[cfg(feature = "model")]
-use std::sync::Arc;
+use crate::model::prelude::*;
 
 /// A Direct Message text channel with another user.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct PrivateChannel {
     /// The unique Id of the private channel.
     ///
@@ -29,23 +23,19 @@ pub struct PrivateChannel {
     /// The Id of the last message sent.
     pub last_message_id: Option<MessageId>,
     /// Timestamp of the last time a [`Message`] was pinned.
-    ///
-    /// [`Message`]: struct.Message.html
     pub last_pin_timestamp: Option<DateTime<Utc>>,
     /// Indicator of the type of channel this is.
     ///
     /// This should always be [`ChannelType::Private`].
-    ///
-    /// [`ChannelType::Private`]: enum.ChannelType.html#variant.Private
     #[serde(rename = "type")]
     pub kind: ChannelType,
     /// The recipient to the private channel.
-    #[serde(deserialize_with = "deserialize_single_recipient",
-            serialize_with = "serialize_single_recipient",
-            rename = "recipients")]
+    #[serde(
+        deserialize_with = "deserialize_single_recipient",
+        serialize_with = "serialize_single_recipient",
+        rename = "recipients"
+    )]
     pub recipient: User,
-    #[serde(skip)]
-    pub(crate) _nonexhaustive: (),
 }
 
 #[cfg(feature = "model")]
@@ -64,18 +54,14 @@ impl PrivateChannel {
     /// Requires the [Add Reactions] permission, _if_ the current user is the
     /// first user to perform a react with a certain emoji.
     ///
-    /// [`Emoji`]: ../guild/struct.Emoji.html
-    /// [`Message`]: struct.Message.html
-    /// [`Message::react`]: struct.Message.html#method.react
-    /// [Add Reactions]: ../permissions/struct.Permissions.html#associatedconstant.ADD_REACTIONS
+    /// [Add Reactions]: Permissions::ADD_REACTIONS
     #[inline]
     pub async fn create_reaction(
         &self,
         http: impl AsRef<Http>,
         message_id: impl Into<MessageId>,
-        reaction_type: impl Into<ReactionType>
-    ) -> Result<()>
-    {
+        reaction_type: impl Into<ReactionType>,
+    ) -> Result<()> {
         self.id.create_reaction(&http, message_id, reaction_type).await
     }
 
@@ -101,15 +87,16 @@ impl PrivateChannel {
     /// Returns [`ModelError::BulkDeleteAmount`] if an attempt was made to
     /// delete either 0 or more than 100 messages.
     ///
-    /// [`ModelError::BulkDeleteAmount`]: ../error/enum.Error.html#variant.BulkDeleteAmount
-    /// [Manage Messages]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_MESSAGES
+    /// [Manage Messages]: Permissions::MANAGE_MESSAGES
     #[inline]
-    pub async fn delete_messages<T: AsRef<MessageId>, It: IntoIterator<Item=T>>(
+    pub async fn delete_messages<T: AsRef<MessageId>, It: IntoIterator<Item = T>>(
         &self,
         http: impl AsRef<Http>,
-        message_ids: It
+        message_ids: It,
     ) -> Result<()>
-    where T: AsRef<MessageId>, It: IntoIterator<Item=T>,
+    where
+        T: AsRef<MessageId>,
+        It: IntoIterator<Item = T>,
     {
         self.id.delete_messages(&http, message_ids).await
     }
@@ -119,9 +106,13 @@ impl PrivateChannel {
     ///
     /// **Note**: Requires the [Manage Channel] permission.
     ///
-    /// [Manage Channel]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_CHANNELS
+    /// [Manage Channel]: Permissions::MANAGE_CHANNELS
     #[inline]
-    pub async fn delete_permission(&self, http: impl AsRef<Http>, permission_type: PermissionOverwriteType) -> Result<()> {
+    pub async fn delete_permission(
+        &self,
+        http: impl AsRef<Http>,
+        permission_type: PermissionOverwriteType,
+    ) -> Result<()> {
         self.id.delete_permission(&http, permission_type).await
     }
 
@@ -130,8 +121,7 @@ impl PrivateChannel {
     /// **Note**: Requires the [Manage Messages] permission, _if_ the current
     /// user did not perform the reaction.
     ///
-    /// [`Reaction`]: struct.Reaction.html
-    /// [Manage Messages]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_MESSAGES
+    /// [Manage Messages]: Permissions::MANAGE_MESSAGES
     #[inline]
     pub async fn delete_reaction(
         &self,
@@ -139,8 +129,7 @@ impl PrivateChannel {
         message_id: impl Into<MessageId>,
         user_id: Option<UserId>,
         reaction_type: impl Into<ReactionType>,
-    ) -> Result<()>
-    {
+    ) -> Result<()> {
         self.id.delete_reaction(&http, message_id, user_id, reaction_type).await
     }
 
@@ -159,18 +148,17 @@ impl PrivateChannel {
     /// is over the [`the limit`], containing the number of unicode code points
     /// over the limit.
     ///
-    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
-    /// [`EditMessage`]: ../../builder/struct.EditMessage.html
-    /// [`Message`]: struct.Message.html
-    /// [`the limit`]: ../../builder/struct.EditMessage.html#method.content
+    /// [`EditMessage`]: crate::builder::EditMessage
+    /// [`the limit`]: crate::builder::EditMessage::content
     #[inline]
     pub async fn edit_message<F>(
         &self,
         http: impl AsRef<Http>,
         message_id: impl Into<MessageId>,
-        f: F
+        f: F,
     ) -> Result<Message>
-    where F: FnOnce(&mut EditMessage) -> &mut EditMessage
+    where
+        F: FnOnce(&mut EditMessage) -> &mut EditMessage,
     {
         self.id.edit_message(&http, message_id, f).await
     }
@@ -180,15 +168,21 @@ impl PrivateChannel {
     /// **Note**: This method is for consistency. This will always return
     /// `false`, due to DMs not being considered NSFW.
     #[inline]
-    pub fn is_nsfw(&self) -> bool { false }
+    pub fn is_nsfw(&self) -> bool {
+        false
+    }
 
     /// Gets a message from the channel.
     ///
     /// Requires the [Read Message History] permission.
     ///
-    /// [Read Message History]: ../permissions/struct.Permissions.html#associatedconstant.READ_MESSAGE_HISTORY
+    /// [Read Message History]: Permissions::READ_MESSAGE_HISTORY
     #[inline]
-    pub async fn message(&self, http: impl AsRef<Http>, message_id: impl Into<MessageId>) -> Result<Message> {
+    pub async fn message(
+        &self,
+        http: impl AsRef<Http>,
+        message_id: impl Into<MessageId>,
+    ) -> Result<Message> {
         self.id.message(&http, message_id).await
     }
 
@@ -198,17 +192,20 @@ impl PrivateChannel {
     ///
     /// Requires the [Read Message History] permission.
     ///
-    /// [`GetMessages`]: ../../builder/struct.GetMessages.html
-    /// [Read Message History]: ../permissions/struct.Permissions.html#associatedconstant.READ_MESSAGE_HISTORY
+    /// [`GetMessages`]: crate::builder::GetMessages
+    /// [Read Message History]: Permissions::READ_MESSAGE_HISTORY
     #[inline]
     pub async fn messages<F>(&self, http: impl AsRef<Http>, builder: F) -> Result<Vec<Message>>
-    where F: FnOnce(&mut GetMessages) -> &mut GetMessages
+    where
+        F: FnOnce(&mut GetMessages) -> &mut GetMessages,
     {
         self.id.messages(&http, builder).await
     }
 
     /// Returns "DM with $username#discriminator".
-    pub fn name(&self) -> String { format!("DM with {}", self.recipient.tag()) }
+    pub fn name(&self) -> String {
+        format!("DM with {}", self.recipient.tag())
+    }
 
     /// Gets the list of [`User`]s who have reacted to a [`Message`] with a
     /// certain [`Emoji`].
@@ -222,27 +219,26 @@ impl PrivateChannel {
     ///
     /// **Note**: Requires the [Read Message History] permission.
     ///
-    /// [`Emoji`]: ../guild/struct.Emoji.html
-    /// [`Message`]: struct.Message.html
-    /// [`User`]: ../user/struct.User.html
-    /// [Read Message History]: ../permissions/struct.Permissions.html#associatedconstant.READ_MESSAGE_HISTORY
+    /// [Read Message History]: Permissions::READ_MESSAGE_HISTORY
     #[inline]
-    pub async fn reaction_users<M, R, U>(&self,
+    pub async fn reaction_users<M, R, U>(
+        &self,
         http: impl AsRef<Http>,
         message_id: impl Into<MessageId>,
         reaction_type: impl Into<ReactionType>,
         limit: Option<u8>,
         after: impl Into<Option<UserId>>,
-    ) -> Result<Vec<User>>
-    {
+    ) -> Result<Vec<User>> {
         self.id.reaction_users(&http, message_id, reaction_type, limit, after).await
     }
 
     /// Pins a [`Message`] to the channel.
-    ///
-    /// [`Message`]: struct.Message.html
     #[inline]
-    pub async fn pin(&self, http: impl AsRef<Http>, message_id: impl Into<MessageId>) -> Result<()> {
+    pub async fn pin(
+        &self,
+        http: impl AsRef<Http>,
+        message_id: impl Into<MessageId>,
+    ) -> Result<()> {
         self.id.pin(&http, message_id).await
     }
 
@@ -260,11 +256,12 @@ impl PrivateChannel {
     /// Returns a [`ModelError::MessageTooLong`] if the content of the message
     /// is over the above limit, containing the number of unicode code points
     /// over the limit.
-    ///
-    /// [`ChannelId`]: ../id/struct.ChannelId.html
-    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
     #[inline]
-    pub async fn say(&self, http: impl AsRef<Http>, content: impl std::fmt::Display) -> Result<Message> {
+    pub async fn say(
+        &self,
+        http: impl AsRef<Http>,
+        content: impl std::fmt::Display,
+    ) -> Result<Message> {
         self.id.say(&http, content).await
     }
 
@@ -282,14 +279,19 @@ impl PrivateChannel {
     /// [`ModelError::MessageTooLong`] will be returned, containing the number
     /// of unicode code points over the limit.
     ///
-    /// [`ChannelId::send_files`]: ../id/struct.ChannelId.html#method.send_files
-    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
-    /// [Attach Files]: ../permissions/struct.Permissions.html#associatedconstant.ATTACH_FILES
-    /// [Send Messages]: ../permissions/struct.Permissions.html#associatedconstant.SEND_MESSAGES
+    /// [Attach Files]: Permissions::ATTACH_FILES
+    /// [Send Messages]: Permissions::SEND_MESSAGES
     #[inline]
-    pub async fn send_files<'a, F, T, It>(&self, http: impl AsRef<Http>, files: It, f: F) -> Result<Message>
-    where for <'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a>,
-          T: Into<AttachmentType<'a>>, It: IntoIterator<Item=T>
+    pub async fn send_files<'a, F, T, It>(
+        &self,
+        http: impl AsRef<Http>,
+        files: It,
+        f: F,
+    ) -> Result<Message>
+    where
+        for<'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a>,
+        T: Into<AttachmentType<'a>>,
+        It: IntoIterator<Item = T>,
     {
         self.id.send_files(&http, files, f).await
     }
@@ -305,12 +307,11 @@ impl PrivateChannel {
     /// is over the above limit, containing the number of unicode code points
     /// over the limit.
     ///
-    /// [`ModelError::MessageTooLong`]: ../error/enum.Error.html#variant.MessageTooLong
-    /// [`CreateMessage`]: ../../builder/struct.CreateMessage.html
-    /// [`Message`]: struct.Message.html
+    /// [`CreateMessage`]: crate::builder::CreateMessage
     #[inline]
     pub async fn send_message<'a, F>(&self, http: impl AsRef<Http>, f: F) -> Result<Message>
-    where for <'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a>
+    where
+        for<'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a>,
     {
         self.id.send_message(&http, f).await
     }
@@ -359,9 +360,6 @@ impl PrivateChannel {
     /// # Ok(())
     /// # }
     /// ```
-    ///
-    /// [`Typing`]: ../../http/typing/struct.Typing.html
-    /// [`Typing::stop`]: ../../http/typing/struct.Typing.html#method.stop
     pub fn start_typing(self, http: &Arc<Http>) -> Result<Typing> {
         http.start_typing(self.id.0)
     }
@@ -370,10 +368,13 @@ impl PrivateChannel {
     ///
     /// Requires the [Manage Messages] permission.
     ///
-    /// [`Message`]: struct.Message.html
-    /// [Manage Messages]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_MESSAGES
+    /// [Manage Messages]: Permissions::MANAGE_MESSAGES
     #[inline]
-    pub async fn unpin(&self, http: impl AsRef<Http>, message_id: impl Into<MessageId>) -> Result<()> {
+    pub async fn unpin(
+        &self,
+        http: impl AsRef<Http>,
+        message_id: impl Into<MessageId>,
+    ) -> Result<()> {
         self.id.unpin(&http, message_id).await
     }
 }

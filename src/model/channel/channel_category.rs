@@ -1,16 +1,14 @@
-use crate::model::prelude::*;
-
 #[cfg(feature = "model")]
 use crate::builder::EditChannel;
+#[cfg(feature = "model")]
+use crate::http::{CacheHttp, Http};
+use crate::model::prelude::*;
 #[cfg(all(feature = "model", feature = "utils"))]
 use crate::utils as serenity_utils;
-#[cfg(feature = "model")]
-use crate::http::{Http, CacheHttp};
 
 /// A category of [`GuildChannel`]s.
-///
-/// [`GuildChannel`]: struct.GuildChannel.html
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct ChannelCategory {
     /// Id of this category.
     pub id: ChannelId,
@@ -24,8 +22,6 @@ pub struct ChannelCategory {
     /// Indicator of the type of channel this is.
     ///
     /// This should always be [`ChannelType::Category`].
-    ///
-    /// [`ChannelType::Category`]: enum.ChannelType.html#variant.Category
     #[serde(rename = "type")]
     pub kind: ChannelType,
     /// The name of the category.
@@ -34,18 +30,18 @@ pub struct ChannelCategory {
     #[serde(default)]
     pub nsfw: bool,
     /// Permission overwrites for the [`GuildChannel`]s.
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
     pub permission_overwrites: Vec<PermissionOverwrite>,
-    #[serde(skip)]
-    pub(crate) _nonexhaustive: (),
 }
 
 #[cfg(feature = "model")]
 impl ChannelCategory {
     /// Adds a permission overwrite to the category's channels.
     #[inline]
-    pub async fn create_permission(&self, http: impl AsRef<Http>, target: &PermissionOverwrite) -> Result<()> {
+    pub async fn create_permission(
+        &self,
+        http: impl AsRef<Http>,
+        target: &PermissionOverwrite,
+    ) -> Result<()> {
         self.id.create_permission(&http, target).await
     }
 
@@ -53,12 +49,15 @@ impl ChannelCategory {
     ///
     /// **Note**: Requires the [Manage Channel] permission.
     ///
-    /// [Manage Channel]: ../permissions/struct.Permissions.html#associatedconstant.MANAGE_CHANNELS
+    /// [Manage Channel]: Permissions::MANAGE_CHANNELS
     #[inline]
-    pub async fn delete_permission(&self, http: impl AsRef<Http>, permission_type: PermissionOverwriteType) -> Result<()> {
+    pub async fn delete_permission(
+        &self,
+        http: impl AsRef<Http>,
+        permission_type: PermissionOverwriteType,
+    ) -> Result<()> {
         self.id.delete_permission(&http, permission_type).await
     }
-
 
     /// Deletes this category if required permissions are met.
     #[inline]
@@ -85,7 +84,8 @@ impl ChannelCategory {
     /// ```
     #[cfg(feature = "utils")]
     pub async fn edit<F>(&mut self, cache_http: impl CacheHttp, f: F) -> Result<()>
-        where F: FnOnce(&mut EditChannel) -> &mut EditChannel
+    where
+        F: FnOnce(&mut EditChannel) -> &mut EditChannel,
     {
         let mut map = HashMap::new();
         map.insert("name", Value::String(self.name.clone()));
@@ -117,7 +117,6 @@ impl ChannelCategory {
                 name,
                 position,
                 kind,
-                _nonexhaustive: (),
             };
         })
     }
@@ -128,5 +127,7 @@ impl ChannelCategory {
     }
 
     /// Returns the name of the category.
-    pub fn name(&self) -> &str { &self.name }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 }

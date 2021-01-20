@@ -1,47 +1,51 @@
 //! User information-related models.
 
 use std::fmt;
-use super::utils::deserialize_u16;
-use super::prelude::*;
-use crate::{internal::prelude::*, model::misc::Mentionable};
-
-#[cfg(feature = "model")]
-use crate::builder::{CreateMessage, EditProfile};
-#[cfg(feature = "model")]
-use crate::http::GuildPagination;
 #[cfg(feature = "model")]
 use std::fmt::Write;
-#[cfg(all(feature = "cache", feature = "model"))]
-use crate::cache::Cache;
+
+use futures::future::{BoxFuture, FutureExt};
 #[cfg(feature = "model")]
 use serde_json::json;
+
+use super::prelude::*;
+use super::utils::deserialize_u16;
 #[cfg(feature = "model")]
-use crate::utils;
+use crate::builder::{CreateMessage, EditProfile};
+#[cfg(all(feature = "cache", feature = "model"))]
+use crate::cache::Cache;
 #[cfg(feature = "collector")]
 use crate::client::bridge::gateway::ShardMessenger;
 #[cfg(feature = "collector")]
 use crate::collector::{
-    CollectReaction, ReactionCollectorBuilder,
-    CollectReply, MessageCollectorBuilder,
+    CollectReaction,
+    CollectReply,
+    MessageCollectorBuilder,
+    ReactionCollectorBuilder,
 };
-use futures::future::{BoxFuture, FutureExt};
 #[cfg(feature = "model")]
-use crate::http::{Http, CacheHttp};
-
+use crate::http::GuildPagination;
+#[cfg(feature = "model")]
+use crate::http::{CacheHttp, Http};
+#[cfg(feature = "model")]
+use crate::utils;
+use crate::{internal::prelude::*, model::misc::Mentionable};
 
 /// Information about the current user.
 #[derive(Clone, Default, Debug, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct CurrentUser {
     pub id: UserId,
     pub avatar: Option<String>,
-    #[serde(default)] pub bot: bool,
-    #[serde(deserialize_with = "deserialize_u16")] pub discriminator: u16,
+    #[serde(default)]
+    pub bot: bool,
+    #[serde(deserialize_with = "deserialize_u16")]
+    pub discriminator: u16,
     pub email: Option<String>,
     pub mfa_enabled: bool,
-    #[serde(rename = "username")] pub name: String,
+    #[serde(rename = "username")]
+    pub name: String,
     pub verified: Option<bool>,
-    #[serde(skip)]
-    pub(crate) _nonexhaustive: (),
 }
 
 #[cfg(feature = "model")]
@@ -72,13 +76,17 @@ impl CurrentUser {
     /// # }
     /// ```
     #[inline]
-    pub fn avatar_url(&self) -> Option<String> { avatar_url(self.id, self.avatar.as_ref()) }
+    pub fn avatar_url(&self) -> Option<String> {
+        avatar_url(self.id, self.avatar.as_ref())
+    }
 
     /// Returns the formatted URL to the user's default avatar URL.
     ///
     /// This will produce a PNG URL.
     #[inline]
-    pub fn default_avatar_url(&self) -> String { default_avatar_url(self.discriminator) }
+    pub fn default_avatar_url(&self) -> String {
+        default_avatar_url(self.discriminator)
+    }
 
     /// Edits the current user's profile settings.
     ///
@@ -104,9 +112,10 @@ impl CurrentUser {
     /// # }
     /// ```
     ///
-    /// [`EditProfile`]: ../../builder/struct.EditProfile.html
+    /// [`EditProfile`]: crate::builder::EditProfile
     pub async fn edit<F>(&mut self, http: impl AsRef<Http>, f: F) -> Result<()>
-    where F: FnOnce(&mut EditProfile) -> &mut EditProfile
+    where
+        F: FnOnce(&mut EditProfile) -> &mut EditProfile,
     {
         let mut map = HashMap::new();
         map.insert("username", Value::String(self.name.clone()));
@@ -130,12 +139,11 @@ impl CurrentUser {
     /// This will call [`avatar_url`] first, and if that returns `None`, it
     /// then falls back to [`default_avatar_url`].
     ///
-    /// [`avatar_url`]: #method.avatar_url
-    /// [`default_avatar_url`]: #method.default_avatar_url
+    /// [`avatar_url`]: Self::avatar_url
+    /// [`default_avatar_url`]: Self::default_avatar_url
     #[inline]
     pub fn face(&self) -> String {
-        self.avatar_url()
-            .unwrap_or_else(|| self.default_avatar_url())
+        self.avatar_url().unwrap_or_else(|| self.default_avatar_url())
     }
 
     /// Gets a list of guilds that the current user is in.
@@ -163,10 +171,13 @@ impl CurrentUser {
     pub async fn guilds(&self, http: impl AsRef<Http>) -> Result<Vec<GuildInfo>> {
         let mut guilds = Vec::new();
         loop {
-            let mut pagination = http.as_ref().get_guilds(
-                &GuildPagination::After(guilds.last().map_or(GuildId(1), |g: &GuildInfo| g.id)),
-                100,
-            ).await?;
+            let mut pagination = http
+                .as_ref()
+                .get_guilds(
+                    &GuildPagination::After(guilds.last().map_or(GuildId(1), |g: &GuildInfo| g.id)),
+                    100,
+                )
+                .await?;
             let len = pagination.len();
             guilds.append(&mut pagination);
             if len != 100 {
@@ -246,16 +257,17 @@ impl CurrentUser {
     ///
     /// May return [`Error::Format`] while writing url to the buffer.
     ///
-    /// [`Error::Format`]: ../../enum.Error.html#variant.Format
-    /// [`HttpError::UnsuccessfulRequest`]: ../../http/enum.HttpError.html#variant.UnsuccessfulRequest
-    pub async fn invite_url(&self, http: impl AsRef<Http>, permissions: Permissions) -> Result<String> {
+    /// [`HttpError::UnsuccessfulRequest`]: crate::http::HttpError::UnsuccessfulRequest
+    pub async fn invite_url(
+        &self,
+        http: impl AsRef<Http>,
+        permissions: Permissions,
+    ) -> Result<String> {
         let bits = permissions.bits();
         let client_id = http.as_ref().get_current_application_info().await.map(|v| v.id)?;
 
-        let mut url = format!(
-            "https://discord.com/api/oauth2/authorize?client_id={}&scope=bot",
-            client_id
-        );
+        let mut url =
+            format!("https://discord.com/api/oauth2/authorize?client_id={}&scope=bot", client_id);
 
         if bits != 0 {
             write!(url, "&permissions={}", bits)?;
@@ -307,7 +319,9 @@ impl CurrentUser {
     /// # }
     /// ```
     #[inline]
-    pub fn tag(&self) -> String { tag(&self.name, self.discriminator) }
+    pub fn tag(&self) -> String {
+        tag(&self.name, self.discriminator)
+    }
 }
 
 /// An enum that represents a default avatar.
@@ -316,7 +330,7 @@ impl CurrentUser {
 ///
 /// The has of the avatar can be retrieved via calling [`name`] on the enum.
 ///
-/// [`name`]: #method.name
+/// [`name`]: Self::name
 #[derive(Copy, Clone, Debug, Deserialize, Hash, Eq, PartialEq, PartialOrd, Ord, Serialize)]
 #[non_exhaustive]
 pub enum DefaultAvatar {
@@ -339,7 +353,9 @@ pub enum DefaultAvatar {
 
 impl DefaultAvatar {
     /// Retrieves the String hash of the default avatar.
-    pub fn name(self) -> Result<String> { serde_json::to_string(&self).map_err(From::from) }
+    pub fn name(self) -> Result<String> {
+        serde_json::to_string(&self).map_err(From::from)
+    }
 }
 
 /// The representation of a user's status.
@@ -349,16 +365,21 @@ impl DefaultAvatar {
 /// - [`DoNotDisturb`];
 /// - [`Invisible`].
 ///
-/// [`DoNotDisturb`]: #variant.DoNotDisturb
-/// [`Invisible`]: #variant.Invisible
+/// [`DoNotDisturb`]: OnlineStatus::DoNotDisturb
+/// [`Invisible`]: OnlineStatus::Invisible
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize)]
 #[non_exhaustive]
 pub enum OnlineStatus {
-    #[serde(rename = "dnd")] DoNotDisturb,
-    #[serde(rename = "idle")] Idle,
-    #[serde(rename = "invisible")] Invisible,
-    #[serde(rename = "offline")] Offline,
-    #[serde(rename = "online")] Online,
+    #[serde(rename = "dnd")]
+    DoNotDisturb,
+    #[serde(rename = "idle")]
+    Idle,
+    #[serde(rename = "invisible")]
+    Invisible,
+    #[serde(rename = "offline")]
+    Offline,
+    #[serde(rename = "online")]
+    Online,
 }
 
 impl OnlineStatus {
@@ -374,11 +395,14 @@ impl OnlineStatus {
 }
 
 impl Default for OnlineStatus {
-    fn default() -> OnlineStatus { OnlineStatus::Online }
+    fn default() -> OnlineStatus {
+        OnlineStatus::Online
+    }
 }
 
 /// Information about a user.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct User {
     /// The unique Id of the user. Can be used to calculate the account's
     /// creation date.
@@ -391,15 +415,13 @@ pub struct User {
     /// The account's discriminator to differentiate the user from others with
     /// the same [`name`]. The name+discriminator pair is always unique.
     ///
-    /// [`name`]: #structfield.name
+    /// [`name`]: Self::name
     #[serde(deserialize_with = "deserialize_u16")]
     pub discriminator: u16,
     /// The account's username. Changing username will trigger a discriminator
     /// change if the username+discriminator pair becomes non-unique.
     #[serde(rename = "username")]
     pub name: String,
-    #[serde(skip)]
-    pub(crate) _nonexhaustive: (),
 }
 
 impl Default for User {
@@ -416,12 +438,12 @@ impl Default for User {
             bot: true,
             discriminator: 1432,
             name: "test".to_string(),
-            _nonexhaustive: (),
         }
     }
 }
 
 use std::hash::{Hash, Hasher};
+
 #[cfg(feature = "model")]
 use chrono::{DateTime, Utc};
 
@@ -445,12 +467,14 @@ impl User {
     ///
     /// This will produce a WEBP image URL, or GIF if the user has a GIF avatar.
     #[inline]
-    pub fn avatar_url(&self) -> Option<String> { avatar_url(self.id, self.avatar.as_ref()) }
+    pub fn avatar_url(&self) -> Option<String> {
+        avatar_url(self.id, self.avatar.as_ref())
+    }
 
     /// Creates a direct message channel between the [current user] and the
     /// user. This can also retrieve the channel if one already exists.
     ///
-    /// [current user]: struct.CurrentUser.html
+    /// [current user]: CurrentUser
     #[inline]
     pub async fn create_dm_channel(&self, cache_http: impl CacheHttp) -> Result<PrivateChannel> {
         if self.bot {
@@ -462,13 +486,17 @@ impl User {
 
     /// Retrieves the time that this user was created at.
     #[inline]
-    pub fn created_at(&self) -> DateTime<Utc> { self.id.created_at() }
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.id.created_at()
+    }
 
     /// Returns the formatted URL to the user's default avatar URL.
     ///
     /// This will produce a PNG URL.
     #[inline]
-    pub fn default_avatar_url(&self) -> String { default_avatar_url(self.discriminator) }
+    pub fn default_avatar_url(&self) -> String {
+        default_avatar_url(self.discriminator)
+    }
 
     /// Sends a message to a user through a direct message channel. This is a
     /// channel that can only be accessed by you and the recipient.
@@ -536,16 +564,11 @@ impl User {
     ///
     /// Returns a [`ModelError::MessagingBot`] if the user being direct messaged
     /// is a bot user.
-    ///
-    /// [`ModelError::MessagingBot`]: ../error/enum.Error.html#variant.MessagingBot
-    /// [`PrivateChannel`]: struct.PrivateChannel.html
-    /// [`User::dm`]: struct.User.html#method.dm
     pub async fn direct_message<F>(&self, cache_http: impl CacheHttp, f: F) -> Result<Message>
-        where for <'a, 'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a> {
-        self.create_dm_channel(&cache_http)
-            .await?
-        .send_message(&cache_http.http(), f)
-            .await
+    where
+        for<'a, 'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a>,
+    {
+        self.create_dm_channel(&cache_http).await?.send_message(&cache_http.http(), f).await
     }
 
     /// This is an alias of [direct_message].
@@ -565,11 +588,12 @@ impl User {
     /// Returns a [`ModelError::MessagingBot`] if the user being direct messaged
     /// is a bot user.
     ///
-    /// [`ModelError::MessagingBot`]: ../error/enum.Error.html#variant.MessagingBot
-    /// [direct_message]: #method.direct_message
+    /// [direct_message]: Self::direct_message
     #[inline]
     pub async fn dm<F>(&self, cache_http: impl CacheHttp, f: F) -> Result<Message>
-    where for <'a, 'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a> {
+    where
+        for<'a, 'b> F: FnOnce(&'b mut CreateMessage<'a>) -> &'b mut CreateMessage<'a>,
+    {
         self.direct_message(cache_http, f).await
     }
 
@@ -579,11 +603,10 @@ impl User {
     /// This will call [`avatar_url`] first, and if that returns `None`, it
     /// then falls back to [`default_avatar_url`].
     ///
-    /// [`avatar_url`]: #method.avatar_url
-    /// [`default_avatar_url`]: #method.default_avatar_url
+    /// [`avatar_url`]: Self::avatar_url
+    /// [`default_avatar_url`]: Self::default_avatar_url
     pub fn face(&self) -> String {
-        self.avatar_url()
-            .unwrap_or_else(|| self.default_avatar_url())
+        self.avatar_url().unwrap_or_else(|| self.default_avatar_url())
     }
 
     /// Check if a user has a [`Role`]. This will retrieve the [`Guild`] from
@@ -602,17 +625,13 @@ impl User {
     /// let _ = message.author.has_role(guild_id, role_id);
     /// ```
     ///
-    /// [`Guild`]: ../guild/struct.Guild.html
-    /// [`GuildId`]: ../id/struct.GuildId.html
-    /// [`PartialGuild`]: ../guild/struct.PartialGuild.html
-    /// [`Role`]: ../guild/struct.Role.html
-    /// [`Cache`]: ../../cache/struct.Cache.html
+    /// [`Cache`]: crate::cache::Cache
     #[inline]
     pub async fn has_role(
         &self,
         cache_http: impl CacheHttp,
         guild: impl Into<GuildContainer>,
-        role: impl Into<RoleId>
+        role: impl Into<RoleId>,
     ) -> Result<bool> {
         self._has_role(&cache_http, guild.into(), role.into()).await
     }
@@ -621,7 +640,7 @@ impl User {
         &'a self,
         cache_http: &'a impl CacheHttp,
         guild: GuildContainer,
-        role: RoleId
+        role: RoleId,
     ) -> BoxFuture<'a, Result<bool>> {
         async move {
             match guild {
@@ -653,7 +672,8 @@ impl User {
                     }
                 },
             }
-        }.boxed()
+        }
+        .boxed()
     }
 
     /// Refreshes the information about the user.
@@ -713,13 +733,19 @@ impl User {
     /// # }
     /// ```
     #[inline]
-    pub fn tag(&self) -> String { tag(&self.name, self.discriminator) }
+    pub fn tag(&self) -> String {
+        tag(&self.name, self.discriminator)
+    }
 
     /// Returns the user's nickname in the given `guild_id`.
     ///
     /// If none is used, it returns `None`.
     #[inline]
-    pub async fn nick_in(&self, cache_http: impl CacheHttp, guild_id: impl Into<GuildId>) -> Option<String> {
+    pub async fn nick_in(
+        &self,
+        cache_http: impl CacheHttp,
+        guild_id: impl Into<GuildId>,
+    ) -> Option<String> {
         let guild_id = guild_id.into();
 
         #[cfg(feature = "cache")]
@@ -738,25 +764,37 @@ impl User {
 
     /// Returns a future that will await one message by this user.
     #[cfg(feature = "collector")]
-    pub fn await_reply<'a>(&self, shard_messenger: &'a impl AsRef<ShardMessenger>) -> CollectReply<'a> {
+    pub fn await_reply<'a>(
+        &self,
+        shard_messenger: &'a impl AsRef<ShardMessenger>,
+    ) -> CollectReply<'a> {
         CollectReply::new(shard_messenger).author_id(self.id.0)
     }
 
     /// Returns a stream builder which can be awaited to obtain a stream of messages sent by this user.
     #[cfg(feature = "collector")]
-    pub fn await_replies<'a>(&self, shard_messenger: &'a impl AsRef<ShardMessenger>) -> MessageCollectorBuilder<'a> {
+    pub fn await_replies<'a>(
+        &self,
+        shard_messenger: &'a impl AsRef<ShardMessenger>,
+    ) -> MessageCollectorBuilder<'a> {
         MessageCollectorBuilder::new(shard_messenger).author_id(self.id.0)
     }
 
     /// Await a single reaction by this user.
     #[cfg(feature = "collector")]
-    pub fn await_reaction<'a>(&self, shard_messenger: &'a impl AsRef<ShardMessenger>) -> CollectReaction<'a> {
+    pub fn await_reaction<'a>(
+        &self,
+        shard_messenger: &'a impl AsRef<ShardMessenger>,
+    ) -> CollectReaction<'a> {
         CollectReaction::new(shard_messenger).author_id(self.id.0)
     }
 
     /// Returns a stream builder which can be awaited to obtain a stream of reactions sent by this user.
     #[cfg(feature = "collector")]
-    pub fn await_reactions<'a>(&self, shard_messenger: &'a impl AsRef<ShardMessenger>) -> ReactionCollectorBuilder<'a> {
+    pub fn await_reactions<'a>(
+        &self,
+        shard_messenger: &'a impl AsRef<ShardMessenger>,
+    ) -> ReactionCollectorBuilder<'a> {
         ReactionCollectorBuilder::new(shard_messenger).author_id(self.id.0)
     }
 }
@@ -774,7 +812,7 @@ impl UserId {
     /// Creates a direct message channel between the [current user] and the
     /// user. This can also retrieve the channel if one already exists.
     ///
-    /// [current user]: ../user/struct.CurrentUser.html
+    /// [current user]: CurrentUser
     pub async fn create_dm_channel(self, cache_http: impl CacheHttp) -> Result<PrivateChannel> {
         #[cfg(feature = "cache")]
         {
@@ -795,8 +833,6 @@ impl UserId {
     }
 
     /// Attempts to find a [`User`] by its Id in the cache.
-    ///
-    /// [`User`]: ../user/struct.User.html
     #[cfg(feature = "cache")]
     #[inline]
     pub async fn to_user_cached(self, cache: impl AsRef<Cache>) -> Option<User> {
@@ -808,8 +844,6 @@ impl UserId {
     ///
     /// **Note**: If the cache is not enabled,
     /// REST API will be used only.
-    ///
-    /// [`User`]: ../user/struct.User.html
     #[inline]
     pub async fn to_user(self, cache_http: impl CacheHttp) -> Result<User> {
         #[cfg(feature = "cache")]
@@ -833,7 +867,6 @@ impl From<CurrentUser> for User {
             discriminator: user.discriminator,
             id: user.id,
             name: user.name,
-            _nonexhaustive: (),
         }
     }
 }
@@ -846,49 +879,56 @@ impl<'a> From<&'a CurrentUser> for User {
             discriminator: user.discriminator,
             id: user.id,
             name: user.name.clone(),
-            _nonexhaustive: (),
         }
     }
 }
 
 impl From<CurrentUser> for UserId {
     /// Gets the Id of a `CurrentUser` struct.
-    fn from(current_user: CurrentUser) -> UserId { current_user.id }
+    fn from(current_user: CurrentUser) -> UserId {
+        current_user.id
+    }
 }
 
 impl<'a> From<&'a CurrentUser> for UserId {
     /// Gets the Id of a `CurrentUser` struct.
-    fn from(current_user: &CurrentUser) -> UserId { current_user.id }
+    fn from(current_user: &CurrentUser) -> UserId {
+        current_user.id
+    }
 }
 
 impl From<Member> for UserId {
     /// Gets the Id of a `Member`.
-    fn from(member: Member) -> UserId { member.user.id }
+    fn from(member: Member) -> UserId {
+        member.user.id
+    }
 }
 
 impl<'a> From<&'a Member> for UserId {
     /// Gets the Id of a `Member`.
-    fn from(member: &Member) -> UserId { member.user.id }
+    fn from(member: &Member) -> UserId {
+        member.user.id
+    }
 }
 
 impl From<User> for UserId {
     /// Gets the Id of a `User`.
-    fn from(user: User) -> UserId { user.id }
+    fn from(user: User) -> UserId {
+        user.id
+    }
 }
 
 impl<'a> From<&'a User> for UserId {
     /// Gets the Id of a `User`.
-    fn from(user: &User) -> UserId { user.id }
+    fn from(user: &User) -> UserId {
+        user.id
+    }
 }
 
 #[cfg(feature = "model")]
 fn avatar_url(user_id: UserId, hash: Option<&String>) -> Option<String> {
     hash.map(|hash| {
-        let ext = if hash.starts_with("a_") {
-            "gif"
-        } else {
-            "webp"
-        };
+        let ext = if hash.starts_with("a_") { "gif" } else { "webp" };
 
         cdn!("/avatars/{}/{}.{}?size=1024", user_id.0, hash, ext)
     })
@@ -927,28 +967,15 @@ mod test {
         fn test_core() {
             let mut user = User::default();
 
-            assert!(
-                user.avatar_url()
-                    .unwrap()
-                    .ends_with("/avatars/210/abc.webp?size=1024")
-            );
-            assert!(
-                user.static_avatar_url()
-                    .unwrap()
-                    .ends_with("/avatars/210/abc.webp?size=1024")
-            );
+            assert!(user.avatar_url().unwrap().ends_with("/avatars/210/abc.webp?size=1024"));
+            assert!(user.static_avatar_url().unwrap().ends_with("/avatars/210/abc.webp?size=1024"));
 
             user.avatar = Some("a_aaa".to_string());
-            assert!(
-                user.avatar_url()
-                    .unwrap()
-                    .ends_with("/avatars/210/a_aaa.gif?size=1024")
-            );
-            assert!(
-                user.static_avatar_url()
-                    .unwrap()
-                    .ends_with("/avatars/210/a_aaa.webp?size=1024")
-            );
+            assert!(user.avatar_url().unwrap().ends_with("/avatars/210/a_aaa.gif?size=1024"));
+            assert!(user
+                .static_avatar_url()
+                .unwrap()
+                .ends_with("/avatars/210/a_aaa.webp?size=1024"));
 
             user.avatar = None;
             assert!(user.avatar_url().is_none());
@@ -958,9 +985,11 @@ mod test {
 
         #[test]
         fn default_avatars() {
-            let mut user = User::default();
+            let mut user = User {
+                discriminator: 0,
+                ..Default::default()
+            };
 
-            user.discriminator = 0;
             assert!(user.default_avatar_url().ends_with("0.png"));
             user.discriminator = 1;
             assert!(user.default_avatar_url().ends_with("1.png"));

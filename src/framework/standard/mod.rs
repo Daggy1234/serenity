@@ -1,6 +1,6 @@
 pub mod help_commands;
 pub mod macros {
-    pub use command_attr::{command, group, help, check, hook};
+    pub use command_attr::{check, command, group, help, hook};
 }
 
 mod args;
@@ -8,39 +8,36 @@ mod configuration;
 mod parse;
 mod structures;
 
-pub use args::{Args, Delimiter, Error as ArgError, Iter, RawArguments};
-pub use configuration::{Configuration, WithWhiteSpace};
-pub use structures::*;
-
-use structures::buckets::{Bucket, Ratelimit};
-pub use structures::buckets::BucketBuilder;
-
-use parse::{ParseError, Invoke};
-use parse::map::{CommandMap, GroupMap, Map};
-
-use super::Framework;
-use crate::client::Context;
-use crate::model::{
-    channel::Message,
-    permissions::Permissions,
-};
-
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
-use tokio::sync::Mutex;
-use futures::future::BoxFuture;
-use uwl::Stream;
+pub use args::{Args, Delimiter, Error as ArgError, Iter, RawArguments};
 use async_trait::async_trait;
+pub use configuration::{Configuration, WithWhiteSpace};
+use futures::future::BoxFuture;
+use parse::map::{CommandMap, GroupMap, Map};
+use parse::{Invoke, ParseError};
+pub use structures::buckets::BucketBuilder;
+use structures::buckets::{Bucket, RateLimitAction};
+pub use structures::*;
+use tokio::sync::Mutex;
+#[cfg(all(feature = "tokio_compat", not(feature = "tokio")))]
+use tokio::time::delay_for as sleep;
+#[cfg(feature = "tokio")]
+use tokio::time::sleep;
 use tracing::instrument;
+use uwl::Stream;
 
+use self::buckets::{RateLimitInfo, RevertBucket};
+use super::Framework;
+#[cfg(feature = "cache")]
+use crate::cache::Cache;
+use crate::client::Context;
 #[cfg(feature = "cache")]
 use crate::model::channel::Channel;
 #[cfg(feature = "cache")]
-use crate::cache::Cache;
-#[cfg(feature = "cache")]
 use crate::model::guild::Member;
+use crate::model::{channel::Message, permissions::Permissions};
 #[cfg(all(feature = "cache", feature = "http", feature = "model"))]
 use crate::model::{guild::Role, id::RoleId};
 
@@ -51,9 +48,8 @@ use crate::model::{guild::Role, id::RoleId};
 pub enum DispatchError {
     /// When a custom function check has failed.
     CheckFailed(&'static str, Reason),
-    /// When the command requester has exceeded a ratelimit bucket. The attached
-    /// value is the time a requester has to wait to run the command again.
-    Ratelimited(Duration),
+    /// When the command caller has exceeded a ratelimit bucket.
+    Ratelimited(RateLimitInfo),
     /// When the requested command is disabled in bot configuration.
     CommandDisabled(String),
     /// When the user is blocked in bot configuration.
@@ -80,10 +76,17 @@ pub enum DispatchError {
     TooManyArguments { max: u16, given: usize },
 }
 
-type DispatchHook = for<'fut> fn(&'fut Context, &'fut Message, DispatchError) -> BoxFuture<'fut , ()>;
+type DispatchHook =
+    for<'fut> fn(&'fut Context, &'fut Message, DispatchError) -> BoxFuture<'fut, ()>;
 type BeforeHook = for<'fut> fn(&'fut Context, &'fut Message, &'fut str) -> BoxFuture<'fut, bool>;
-type AfterHook = for<'fut> fn(&'fut Context, &'fut Message, &'fut str, Result<(), CommandError>) -> BoxFuture<'fut, ()>;
-type UnrecognisedHook = for<'fut> fn(&'fut Context, &'fut Message, &'fut str) -> BoxFuture<'fut, ()>;
+type AfterHook = for<'fut> fn(
+    &'fut Context,
+    &'fut Message,
+    &'fut str,
+    Result<(), CommandError>,
+) -> BoxFuture<'fut, ()>;
+type UnrecognisedHook =
+    for<'fut> fn(&'fut Context, &'fut Message, &'fut str) -> BoxFuture<'fut, ()>;
 type NormalMessageHook = for<'fut> fn(&'fut Context, &'fut Message) -> BoxFuture<'fut, ()>;
 type PrefixOnlyHook = for<'fut> fn(&'fut Context, &'fut Message) -> BoxFuture<'fut, ()>;
 
@@ -91,7 +94,7 @@ type PrefixOnlyHook = for<'fut> fn(&'fut Context, &'fut Message) -> BoxFuture<'f
 ///
 /// Refer to the [module-level documentation] for more information.
 ///
-/// [module-level documentation]: index.html
+/// [module-level documentation]: self
 #[derive(Default)]
 pub struct StandardFramework {
     groups: Vec<(&'static CommandGroup, Map)>,
@@ -117,8 +120,8 @@ pub struct StandardFramework {
     /// framework check if a [`Event::MessageCreate`] should be processed by
     /// itself.
     ///
-    /// [`EventHandler::message`]: ../../client/trait.EventHandler.html#method.message
-    /// [`Event::MessageCreate`]: ../../model/event/enum.Event.html#variant.MessageCreate
+    /// [`EventHandler::message`]: crate::client::EventHandler::message
+    /// [`Event::MessageCreate`]: crate::model::event::Event::MessageCreate
     pub initialized: bool,
 }
 
@@ -155,10 +158,9 @@ impl StandardFramework {
     /// # }
     /// ```
     ///
-    /// [`Client`]: ../../client/struct.Client.html
-    /// [`Configuration::default`]: struct.Configuration.html#method.default
-    /// [`prefix`]: struct.Configuration.html#method.prefix
-    /// [allowing whitespace between prefixes]: struct.Configuration.html#method.with_whitespace
+    /// [`Client`]: crate::Client
+    /// [`prefix`]: Configuration::prefix
+    /// [allowing whitespace between prefixes]: Configuration::with_whitespace
     pub fn configure<F>(mut self, f: F) -> Self
     where
         F: FnOnce(&mut Configuration) -> &mut Configuration,
@@ -196,38 +198,21 @@ impl StandardFramework {
     #[inline]
     pub async fn bucket<F>(self, name: &str, f: F) -> Self
     where
-        F: FnOnce(&mut BucketBuilder) -> &mut BucketBuilder
+        F: FnOnce(&mut BucketBuilder) -> &mut BucketBuilder,
     {
         let mut builder = BucketBuilder::default();
 
         f(&mut builder);
 
-        let BucketBuilder {
-            delay,
-            time_span,
-            limit,
-            check,
-        } = builder;
-
-        self.buckets.lock().await.insert(
-            name.to_string(),
-            Bucket {
-                ratelimit: Ratelimit {
-                    delay,
-                    limit: Some((time_span, limit)),
-                },
-                users: HashMap::new(),
-                check,
-            },
-        );
+        self.buckets.lock().await.insert(name.to_string(), builder.construct());
 
         self
     }
 
     /// Whether the message should be ignored because it is from a bot or webhook.
     fn should_ignore(&self, msg: &Message) -> bool {
-        (self.config.ignore_bots && msg.author.bot) ||
-            (self.config.ignore_webhooks && msg.webhook_id.is_some())
+        (self.config.ignore_bots && msg.author.bot)
+            || (self.config.ignore_webhooks && msg.webhook_id.is_some())
     }
 
     async fn should_fail<'a>(
@@ -283,35 +268,47 @@ impl StandardFramework {
             }
         }
 
-        if !self.config.allowed_channels.is_empty() &&
-           !self.config.allowed_channels.contains(&msg.channel_id) {
+        if !self.config.allowed_channels.is_empty()
+            && !self.config.allowed_channels.contains(&msg.channel_id)
+        {
             return Some(DispatchError::BlockedChannel);
         }
 
-        {
-            let mut buckets = self.buckets.lock().await;
+        // Try passing the command's bucket.
+        // exiting the loop if no command ratelimit has been hit or
+        // early-return when ratelimits cancel the framework invocation.
+        // Otherwise, delay and loop again to check if we passed the bucket.
+        loop {
+            let mut duration = None;
 
-            if let Some(ref mut bucket) = command.bucket.as_ref().and_then(|b| buckets.get_mut(*b)) {
-                let rate_limit = bucket.take(msg.author.id.0);
+            {
+                let mut buckets = self.buckets.lock().await;
 
-                let apply = match bucket.check.as_ref() {
-                    Some(check) => (check)(ctx, msg.guild_id, msg.channel_id, msg.author.id).await,
-                    None => true,
-                };
-
-                if let Some(rate_limit)= rate_limit {
-                    if apply {
-                        return Some(DispatchError::Ratelimited(rate_limit))
+                if let Some(ref mut bucket) =
+                    command.bucket.as_ref().and_then(|b| buckets.get_mut(*b))
+                {
+                    if let Some(rate_limit_info) = bucket.take(ctx, msg).await {
+                        duration = match rate_limit_info.action {
+                            RateLimitAction::Cancelled | RateLimitAction::FailedDelay => {
+                                return Some(DispatchError::Ratelimited(rate_limit_info))
+                            },
+                            RateLimitAction::Delayed => Some(rate_limit_info.rate_limit),
+                        };
                     }
                 }
+            }
+
+            match duration {
+                Some(duration) => sleep(duration).await,
+                None => break,
             }
         }
 
         for check in group.checks.iter().chain(command.checks.iter()) {
             let res = (check.function)(ctx, msg, args, command).await;
 
-            if let CheckResult::Failure(r) = res {
-                return Some(DispatchError::CheckFailed(check.name, r));
+            if let Result::Err(reason) = res {
+                return Some(DispatchError::CheckFailed(check.name, reason));
             }
         }
 
@@ -378,7 +375,7 @@ impl StandardFramework {
     /// Note: does _not_ return `Self` like many other commands. This is because
     /// it's not intended to be chained as the other commands are.
     ///
-    /// [`group`]: #method.group
+    /// [`group`]: Self::group
     pub fn group_add(&mut self, group: &'static CommandGroup) {
         let map = if group.options.prefixes.is_empty() {
             Map::Prefixless(
@@ -601,7 +598,7 @@ impl StandardFramework {
 
 #[async_trait]
 impl Framework for StandardFramework {
-    #[instrument(skip(self, ctx))]
+    #[instrument(skip(self, ctx, msg))]
     async fn dispatch(&self, mut ctx: Context, msg: Message) {
         if self.should_ignore(&msg) {
             return;
@@ -636,7 +633,8 @@ impl Framework for StandardFramework {
             &self.groups,
             &self.config,
             self.help.as_ref().map(|h| h.options.names),
-        ).await;
+        )
+        .await;
 
         let invoke = match invocation {
             Ok(i) => i,
@@ -652,14 +650,14 @@ impl Framework for StandardFramework {
                 }
 
                 return;
-            }
+            },
             Err(ParseError::Dispatch(error)) => {
                 if let Some(dispatch) = &self.dispatch {
                     dispatch(&mut ctx, &msg, error).await;
                 }
 
                 return;
-            }
+            },
         };
 
         match invoke {
@@ -683,8 +681,11 @@ impl Framework for StandardFramework {
                 if let Some(after) = &self.after {
                     after(&mut ctx, &msg, name, res).await;
                 }
-            }
-            Invoke::Command { command, group } => {
+            },
+            Invoke::Command {
+                command,
+                group,
+            } => {
                 let mut args = {
                     use std::borrow::Cow;
 
@@ -730,10 +731,21 @@ impl Framework for StandardFramework {
 
                 let res = (command.fun)(&mut ctx, &msg, args).await;
 
+                // Check if the command wants to revert the bucket by giving back a ticket.
+                if matches!(res, Err(ref e) if e.is::<RevertBucket>()) {
+                    let mut buckets = self.buckets.lock().await;
+
+                    if let Some(ref mut bucket) =
+                        command.options.bucket.as_ref().and_then(|b| buckets.get_mut(*b))
+                    {
+                        bucket.give(&ctx, &msg).await;
+                    }
+                }
+
                 if let Some(after) = &self.after {
                     after(&mut ctx, &msg, name, res).await;
                 }
-            }
+            },
         }
     }
 }
@@ -817,7 +829,27 @@ pub(crate) async fn has_correct_permissions(
     if options.required_permissions().is_empty() {
         true
     } else if let Some(guild) = message.guild(&cache).await {
-        let perms = guild.user_permissions_in(message.channel_id, message.author.id);
+        let channel = match guild.channels.get(&message.channel_id) {
+            Some(channel) => channel,
+            None => return false,
+        };
+        let member = match guild.members.get(&message.author.id) {
+            Some(member) => member,
+            None => return false,
+        };
+
+        let perms = match guild.user_permissions_in(channel, member) {
+            Ok(perms) => perms,
+            Err(e) => {
+                tracing::error!(
+                    "(╯°□°）╯︵ ┻━┻ error getting permissions for user {} in channel {}: {}",
+                    member.user.id,
+                    channel.id,
+                    e
+                );
+                return false;
+            },
+        };
 
         perms.contains(*options.required_permissions())
     } else {
@@ -829,12 +861,13 @@ pub(crate) async fn has_correct_permissions(
 pub(crate) fn has_correct_roles(
     options: &impl CommonOptions,
     roles: &HashMap<RoleId, Role>,
-    member: &Member)
--> bool {
+    member: &Member,
+) -> bool {
     if options.allowed_roles().is_empty() {
         true
     } else {
-        options.allowed_roles()
+        options
+            .allowed_roles()
             .iter()
             .flat_map(|r| roles.values().find(|role| *r == role.name))
             .any(|g| member.roles.contains(&g.id))

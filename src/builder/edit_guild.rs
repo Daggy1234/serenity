@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use crate::internal::prelude::*;
 use crate::model::prelude::*;
-use std::collections::HashMap;
 
 /// A builder to optionally edit certain fields of a [`Guild`]. This is meant
 /// for usage with [`Guild::edit`].
@@ -8,9 +9,9 @@ use std::collections::HashMap;
 /// **Note**: Editing a guild requires that the current user have the
 /// [Manage Guild] permission.
 ///
-/// [`Guild::edit`]: ../model/guild/struct.Guild.html#method.edit
-/// [`Guild`]: ../model/guild/struct.Guild.html
-/// [Manage Guild]: ../model/permissions/struct.Permissions.html#associatedconstant.MANAGE_GUILD
+/// [`Guild::edit`]: crate::model::guild::Guild::edit
+/// [`Guild`]: crate::model::guild::Guild
+/// [Manage Guild]: crate::model::permissions::Permissions::MANAGE_GUILD
 #[derive(Clone, Debug, Default)]
 pub struct EditGuild(pub HashMap<&'static str, Value>);
 
@@ -22,7 +23,7 @@ impl EditGuild {
     /// not set an AFK channel. The library does not check if a channel is
     /// valid.
     ///
-    /// [`afk_timeout`]: #method.afk_timeout
+    /// [`afk_timeout`]: Self::afk_timeout
     #[inline]
     pub fn afk_channel<C: Into<ChannelId>>(&mut self, channel: Option<C>) -> &mut Self {
         self._afk_channel(channel.map(Into::into));
@@ -30,24 +31,18 @@ impl EditGuild {
     }
 
     fn _afk_channel(&mut self, channel: Option<ChannelId>) {
-        self.0.insert(
-            "afk_channel_id",
-            match channel {
-                Some(channel) => Value::Number(Number::from(channel.0)),
-                None => Value::Null,
-            },
-        );
+        self.0.insert("afk_channel_id", match channel {
+            Some(channel) => Value::Number(Number::from(channel.0)),
+            None => Value::Null,
+        });
     }
 
     /// Set the amount of time a user is to be moved to the AFK channel -
     /// configured via [`afk_channel`] - after being AFK.
     ///
-    /// [`afk_channel`]: #method.afk_channel
+    /// [`afk_channel`]: Self::afk_channel
     pub fn afk_timeout(&mut self, timeout: u64) -> &mut Self {
-        self.0.insert(
-            "afk_timeout",
-            Value::Number(Number::from(timeout)),
-        );
+        self.0.insert("afk_timeout", Value::Number(Number::from(timeout)));
         self
     }
 
@@ -78,12 +73,9 @@ impl EditGuild {
     /// # }
     /// ```
     ///
-    /// [`utils::read_image`]: ../utils/fn.read_image.html
+    /// [`utils::read_image`]: crate::utils::read_image
     pub fn icon(&mut self, icon: Option<&str>) -> &mut Self {
-        self.0.insert(
-            "icon",
-            icon.map_or_else(|| Value::Null, |x| Value::String(x.to_string())),
-        );
+        self.0.insert("icon", icon.map_or_else(|| Value::Null, |x| Value::String(x.to_string())));
         self
     }
 
@@ -132,8 +124,6 @@ impl EditGuild {
     /// #     Ok(())
     /// # }
     /// ```
-    ///
-    /// [`Region::UsWest`]: ../model/guild/enum.Region.html#variant.UsWest
     pub fn region(&mut self, region: Region) -> &mut Self {
         self.0.insert("region", Value::String(region.name().to_string()));
         self
@@ -144,7 +134,7 @@ impl EditGuild {
     /// Requires that the guild have the `INVITE_SPLASH` feature enabled.
     /// You can check this through a guild's [`features`] list.
     ///
-    /// [`features`]: ../model/guild/struct.Guild.html#structfield.features
+    /// [`features`]: crate::model::guild::Guild::features
     pub fn splash(&mut self, splash: Option<&str>) -> &mut Self {
         let splash = splash.map_or(Value::Null, |x| Value::String(x.to_string()));
         self.0.insert("splash", splash);
@@ -183,11 +173,11 @@ impl EditGuild {
     /// #     Ok(())
     /// # }
     /// ```
-    /// [`VerificationLevel`]: ../model/guild/enum.VerificationLevel.html
-    /// [`VerificationLevel::High`]: ../model/guild/enum.VerificationLevel.html#variant.High
     #[inline]
     pub fn verification_level<V>(&mut self, verification_level: V) -> &mut Self
-        where V: Into<VerificationLevel> {
+    where
+        V: Into<VerificationLevel>,
+    {
         self._verification_level(verification_level.into());
         self
     }

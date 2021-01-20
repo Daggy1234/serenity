@@ -27,27 +27,18 @@
 //! while needing to hit the REST API as little as possible, then the answer
 //! is "yes".
 //!
-//! [`Shard`]: ../gateway/struct.Shard.html
-//! [`Emoji`]: ../model/guild/struct.Emoji.html
-//! [`Guild`]: ../model/guild/struct.Guild.html
-//! [`Guild::edit`]: ../model/guild/struct.Guild.html#method.edit
-//! [`Message`]: ../model/channel/struct.Message.html
-//! [`GuildChannel`]: ../model/channel/struct.GuildChannel.html
-//! [`Role`]: ../model/guild/struct.Role.html
-//! [`http`]: ../http/index.html
+//! [`Shard`]: crate::gateway::Shard
+//! [`http`]: crate::http
 
-use std::str::FromStr;
-use crate::model::prelude::*;
-use tokio::sync::RwLock;
-use std::collections::{
-    hash_map::Entry,
-    HashMap,
-    HashSet,
-    VecDeque,
-};
+use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 use std::default::Default;
+use std::str::FromStr;
+
 use async_trait::async_trait;
+use tokio::sync::RwLock;
 use tracing::instrument;
+
+use crate::model::prelude::*;
 
 mod cache_update;
 mod settings;
@@ -62,19 +53,22 @@ pub trait FromStrAndCache: Sized {
     type Err;
 
     async fn from_str<CRL>(cache: CRL, s: &str) -> Result<Self, Self::Err>
-        where CRL: AsRef<Cache> + Send + Sync;
+    where
+        CRL: AsRef<Cache> + Send + Sync;
 }
 
 #[async_trait]
 pub trait StrExt: Sized {
     async fn parse_cached<CRL, F: FromStrAndCache>(&self, cache: CRL) -> Result<F, F::Err>
-        where CRL: AsRef<Cache> + Send + Sync;
+    where
+        CRL: AsRef<Cache> + Send + Sync;
 }
 
 #[async_trait]
 impl StrExt for &str {
     async fn parse_cached<CRL, F: FromStrAndCache>(&self, cache: CRL) -> Result<F, F::Err>
-        where CRL: AsRef<Cache> + Send + Sync
+    where
+        CRL: AsRef<Cache> + Send + Sync,
     {
         F::from_str(&cache, &self).await
     }
@@ -85,7 +79,8 @@ impl<F: FromStr> FromStrAndCache for F {
     type Err = F::Err;
 
     async fn from_str<CRL>(_cache: CRL, s: &str) -> Result<Self, Self::Err>
-        where CRL: AsRef<Cache> + Send + Sync
+    where
+        CRL: AsRef<Cache> + Send + Sync,
     {
         s.parse::<F>()
     }
@@ -98,8 +93,8 @@ impl<F: FromStr> FromStrAndCache for F {
 ///
 /// The cache will clone all values when calling its methods.
 ///
-/// [`Shard`]: ../gateway/struct.Shard.html
-/// [`http`]: ../http/index.html
+/// [`Shard`]: crate::gateway::Shard
+/// [`http`]: crate::http
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct Cache {
@@ -109,18 +104,11 @@ pub struct Cache {
     /// When a [`Event::GuildDelete`] or [`Event::GuildUnavailable`] is
     /// received and processed by the cache, the relevant channels are also
     /// removed from this map.
-    ///
-    /// [`Event::GuildDelete`]: ../model/event/struct.GuildDeleteEvent.html
-    /// [`Event::GuildUnavailable`]: ../model/event/struct.GuildUnavailableEvent.html
-    /// [`Guild`]: ../model/guild/struct.Guild.html
     pub(crate) channels: RwLock<HashMap<ChannelId, GuildChannel>>,
     /// A map of channel categories.
     pub(crate) categories: RwLock<HashMap<ChannelId, ChannelCategory>>,
     /// A map of guilds with full data available. This includes data like
     /// [`Role`]s and [`Emoji`]s that are not available through the REST API.
-    ///
-    /// [`Emoji`]: ../model/guild/struct.Emoji.html
-    /// [`Role`]: ../model/guild/struct.Role.html
     pub(crate) guilds: RwLock<HashMap<GuildId, Guild>>,
     pub(crate) messages: RwLock<MessageCache>,
     /// A map of users' presences. This is updated in real-time. Note that
@@ -138,9 +126,6 @@ pub struct Cache {
     /// Additionally, guilds are always unavailable for bot users when a Ready
     /// is received. Guilds are "sent in" over time through the receiving of
     /// [`Event::GuildCreate`]s.
-    ///
-    /// [`Event::GuildCreate`]: ../model/event/enum.Event.html#variant.GuildCreate
-    /// [`Event::GuildUnavailable`]: ../model/event/enum.Event.html#variant.GuildUnavailable
     pub(crate) unavailable_guilds: RwLock<HashSet<GuildId>>,
     /// The current user "logged in" and for which events are being received
     /// for.
@@ -149,9 +134,6 @@ pub struct Cache {
     /// such as whether it is a bot, whether the user is verified, etc.
     ///
     /// Refer to the documentation for [`CurrentUser`] for more information.
-    ///
-    /// [`CurrentUser`]: ../model/user/struct.CurrentUser.html
-    /// [`User`]: ../model/user/struct.User.html
     pub(crate) user: RwLock<CurrentUser>,
     /// A map of users that the current user sees.
     ///
@@ -167,13 +149,6 @@ pub struct Cache {
     /// Note, however, that users are _not_ removed from the map on removal
     /// events such as [`GuildMemberRemove`][`GuildMemberRemoveEvent`], as other
     /// structs such as members or recipients may still exist.
-    ///
-    /// [`GuildMemberAddEvent`]: ../model/event/struct.GuildMemberAddEvent.html
-    /// [`GuildMemberRemoveEvent`]: ../model/event/struct.GuildMemberRemoveEvent.html
-    /// [`GuildMemberUpdateEvent`]: ../model/event/struct.GuildMemberUpdateEvent.html
-    /// [`GuildMembersChunkEvent`]: ../model/event/struct.GuildMembersChunkEvent.html
-    /// [`PresenceUpdateEvent`]: ../model/event/struct.PresenceUpdateEvent.html
-    /// [`ReadyEvent`]: ../model/event/struct.ReadyEvent.html
     pub(crate) users: RwLock<HashMap<UserId, User>>,
     /// Queue of message IDs for each channel.
     ///
@@ -244,22 +219,20 @@ impl Cache {
     ///         //
     ///         // For demonstrative purposes we're just sleeping the thread for 5
     ///         // seconds.
-    ///         tokio::time::delay_for(Duration::from_secs(5)).await;
+    ///         tokio::time::sleep(Duration::from_secs(5)).await;
     ///
     ///         println!("{} unknown members", ctx.cache.unknown_members().await);
     ///     }
     /// }
     ///
-    /// let mut client =Client::builder("token").event_handler(Handler).await?;
+    /// let mut client = Client::builder("token").event_handler(Handler).await?;
     ///
     /// client.start().await?;
     /// #     Ok(())
     /// # }
     /// ```
     ///
-    /// [`Member`]: ../model/guild/struct.Member.html
-    /// [`Shard::chunk_guild`]: ../gateway/struct.Shard.html#method.chunk_guild
-    /// [`User`]: ../model/user/struct.User.html
+    /// [`Shard::chunk_guild`]: crate::gateway::Shard::chunk_guild
     pub async fn unknown_members(&self) -> u64 {
         let mut total = 0;
 
@@ -296,8 +269,6 @@ impl Cache {
     /// println!("There are {} private channels", amount);
     /// # }
     /// ```
-    ///
-    /// [`PrivateChannel`]: ../model/channel/struct.PrivateChannel.html
     pub async fn private_channels(&self) -> HashMap<ChannelId, PrivateChannel> {
         self.private_channels.read().await.clone()
     }
@@ -328,18 +299,11 @@ impl Cache {
     /// }
     /// ```
     ///
-    /// [`Context`]: ../client/struct.Context.html
-    /// [`Guild`]: ../model/guild/struct.Guild.html
-    /// [`Shard`]: ../gateway/struct.Shard.html
+    /// [`Context`]: crate::client::Context
+    /// [`Shard`]: crate::gateway::Shard
     pub async fn guilds(&self) -> Vec<GuildId> {
         let chain = self.unavailable_guilds.read().await.clone().into_iter();
-        self.guilds
-            .read()
-            .await
-            .keys()
-            .cloned()
-            .chain(chain)
-            .collect()
+        self.guilds.read().await.keys().cloned().chain(chain).collect()
     }
 
     /// Retrieves a [`Channel`] from the cache based on the given Id.
@@ -352,13 +316,11 @@ impl Cache {
     /// - [`GuildChannel`]: [`guild_channel`] or [`channels`]
     /// - [`PrivateChannel`]: [`private_channel`] or [`private_channels`]
     ///
-    /// [`Channel`]: ../model/channel/enum.Channel.html
-    /// [`Guild`]: ../model/guild/struct.Guild.html
-    /// [`channels`]: #structfield.channels
-    /// [`guild_channel`]: #method.guild_channel
-    /// [`private_channel`]: #method.private_channel
-    /// [`groups`]: #structfield.groups
-    /// [`private_channels`]: #structfield.private_channels
+    /// [`channels`]: Self::channels
+    /// [`guild_channel`]: Self::guild_channel
+    /// [`private_channel`]: Self::private_channel
+    /// [`groups`]: Self::groups
+    /// [`private_channels`]: Self::private_channels
     #[inline]
     pub async fn channel<C: Into<ChannelId>>(&self, id: C) -> Option<Channel> {
         self._channel(id.into()).await
@@ -381,7 +343,7 @@ impl Cache {
     ///
     /// In order to clone only a field of the guild, use [`guild_field`].
     ///
-    /// [`guild_field`]: #method.guild_field
+    /// [`guild_field`]: Self::guild_field
     ///
     /// # Examples
     ///
@@ -427,13 +389,21 @@ impl Cache {
     /// # }
     /// ```
     #[inline]
-    pub async fn guild_field<Ret, Fun>(&self, id: impl Into<GuildId>, field_selector: Fun) -> Option<Ret>
-    where Fun: FnOnce(&Guild) -> Ret {
+    pub async fn guild_field<Ret, Fun>(
+        &self,
+        id: impl Into<GuildId>,
+        field_selector: Fun,
+    ) -> Option<Ret>
+    where
+        Fun: FnOnce(&Guild) -> Ret,
+    {
         self._guild_field(id.into(), field_selector).await
     }
 
     async fn _guild_field<Ret, Fun>(&self, id: GuildId, field_accessor: Fun) -> Option<Ret>
-    where Fun: FnOnce(&Guild) -> Ret {
+    where
+        Fun: FnOnce(&Guild) -> Ret,
+    {
         let guilds = self.guilds.read().await;
         let guild = guilds.get(&id)?;
 
@@ -489,10 +459,8 @@ impl Cache {
     /// # }
     /// ```
     ///
-    /// [`ChannelId`]: ../model/id/struct.ChannelId.html
     /// [`Client::on_message`]: ../client/struct.Client.html#method.on_message
-    /// [`Guild`]: ../model/guild/struct.Guild.html
-    /// [`channel`]: #method.channel
+    /// [`channel`]: Self::channel
     #[inline]
     pub async fn guild_channel<C: Into<ChannelId>>(&self, id: C) -> Option<GuildChannel> {
         self._guild_channel(id.into()).await
@@ -519,17 +487,25 @@ impl Cache {
     /// # }
     /// ```
     #[inline]
-    pub async fn guild_channel_field<Ret, Fun>(&self,
+    pub async fn guild_channel_field<Ret, Fun>(
+        &self,
         id: impl Into<ChannelId>,
-        field_selector: Fun) -> Option<Ret>
-    where Fun: FnOnce(&GuildChannel) -> Ret {
+        field_selector: Fun,
+    ) -> Option<Ret>
+    where
+        Fun: FnOnce(&GuildChannel) -> Ret,
+    {
         self._guild_channel_field(id.into(), field_selector).await
     }
 
-    async fn _guild_channel_field<Ret, Fun>(&self,
+    async fn _guild_channel_field<Ret, Fun>(
+        &self,
         id: ChannelId,
-        field_selector: Fun) -> Option<Ret>
-    where Fun: FnOnce(&GuildChannel) -> Ret {
+        field_selector: Fun,
+    ) -> Option<Ret>
+    where
+        Fun: FnOnce(&GuildChannel) -> Ret,
+    {
         let guild_channels = &self.channels.read().await;
         let channel = guild_channels.get(&id)?;
 
@@ -589,22 +565,19 @@ impl Cache {
     /// ```
     ///
     /// [`Client::on_message`]: ../client/struct.Client.html#method.on_message
-    /// [`Guild`]: ../model/guild/struct.Guild.html
-    /// [`members`]: ../model/guild/struct.Guild.html#structfield.members
+    /// [`members`]: crate::model::guild::Guild::members
     #[inline]
     pub async fn member<G, U>(&self, guild_id: G, user_id: U) -> Option<Member>
-        where G: Into<GuildId>, U: Into<UserId> {
+    where
+        G: Into<GuildId>,
+        U: Into<UserId>,
+    {
         self._member(guild_id.into(), user_id.into()).await
     }
 
     async fn _member(&self, guild_id: GuildId, user_id: UserId) -> Option<Member> {
         match self.guilds.read().await.get(&guild_id) {
-            Some(guild) => {
-                guild
-                    .members
-                    .get(&user_id)
-                    .cloned()
-            }
+            Some(guild) => guild.members.get(&user_id).cloned(),
             None => None,
         }
     }
@@ -626,19 +599,27 @@ impl Cache {
     /// # }
     /// ```
     #[inline]
-    pub async fn member_field<Ret, Fun>(&self,
+    pub async fn member_field<Ret, Fun>(
+        &self,
         guild_id: impl Into<GuildId>,
         user_id: impl Into<UserId>,
-        field_selector: Fun) -> Option<Ret>
-    where Fun: FnOnce(&Member) -> Ret {
+        field_selector: Fun,
+    ) -> Option<Ret>
+    where
+        Fun: FnOnce(&Member) -> Ret,
+    {
         self._member_field(guild_id.into(), user_id.into(), field_selector).await
     }
 
-    async fn _member_field<Ret, Fun>(&self,
+    async fn _member_field<Ret, Fun>(
+        &self,
         guild_id: GuildId,
         user_id: UserId,
-        field_selector: Fun) -> Option<Ret>
-    where Fun: FnOnce(&Member) -> Ret {
+        field_selector: Fun,
+    ) -> Option<Ret>
+    where
+        Fun: FnOnce(&Member) -> Ret,
+    {
         let guilds = &self.guilds.read().await;
         let guild = guilds.get(&guild_id)?;
         let member = guild.members.get(&user_id)?;
@@ -663,7 +644,10 @@ impl Cache {
 
     /// This method returns all channels from a guild of with the given `guild_id`.
     #[inline]
-    pub async fn guild_channels(&self, guild_id: impl Into<GuildId>) -> Option<HashMap<ChannelId, GuildChannel>> {
+    pub async fn guild_channels(
+        &self,
+        guild_id: impl Into<GuildId>,
+    ) -> Option<HashMap<ChannelId, GuildChannel>> {
         self._guild_channels(guild_id.into()).await
     }
 
@@ -712,18 +696,22 @@ impl Cache {
     /// # }
     /// ```
     ///
-    /// [`EventHandler::message`]: ../client/trait.EventHandler.html#method.message
-    /// [`Channel`]: ../model/channel/struct.Channel.html
+    /// [`EventHandler::message`]: crate::client::EventHandler::message
     #[inline]
     pub async fn message<C, M>(&self, channel_id: C, message_id: M) -> Option<Message>
-        where C: Into<ChannelId>, M: Into<MessageId> {
+    where
+        C: Into<ChannelId>,
+        M: Into<MessageId>,
+    {
         self._message(channel_id.into(), message_id.into()).await
     }
 
     async fn _message(&self, channel_id: ChannelId, message_id: MessageId) -> Option<Message> {
-        self.messages.read().await.get(&channel_id).and_then(|messages| {
-            messages.get(&message_id).cloned()
-        })
+        self.messages
+            .read()
+            .await
+            .get(&channel_id)
+            .and_then(|messages| messages.get(&message_id).cloned())
     }
 
     /// Retrieves a [`PrivateChannel`] from the cache's [`private_channels`]
@@ -753,9 +741,12 @@ impl Cache {
     /// # }
     /// ```
     ///
-    /// [`private_channels`]: #structfield.private_channels
+    /// [`private_channels`]: Self::private_channels
     #[inline]
-    pub async fn private_channel(&self, channel_id: impl Into<ChannelId>) -> Option<PrivateChannel> {
+    pub async fn private_channel(
+        &self,
+        channel_id: impl Into<ChannelId>,
+    ) -> Option<PrivateChannel> {
         self._private_channel(channel_id.into()).await
     }
 
@@ -768,8 +759,8 @@ impl Cache {
     /// **Note**: This will clone the entire role. Instead, retrieve the guild
     /// and retrieve from the guild's [`roles`] map to avoid this.
     ///
-    /// [`Guild`]: ../model/guild/struct.Guild.html
-    /// [`roles`]: ../model/guild/struct.Guild.html#structfield.roles
+    /// [`Guild`]: crate::model::guild::Guild
+    /// [`roles`]: crate::model::guild::Guild::roles
     ///
     /// # Examples
     ///
@@ -791,7 +782,10 @@ impl Cache {
     /// ```
     #[inline]
     pub async fn role<G, R>(&self, guild_id: G, role_id: R) -> Option<Role>
-        where G: Into<GuildId>, R: Into<RoleId> {
+    where
+        G: Into<GuildId>,
+        R: Into<RoleId>,
+    {
         self._role(guild_id.into(), role_id.into()).await
     }
 
@@ -829,8 +823,8 @@ impl Cache {
     /// The only advantage of this method is that you can pass in anything that
     /// is indirectly a [`UserId`].
     ///
-    /// [`UserId`]: ../model/id/struct.UserId.html
-    /// [`users`]: #structfield.users
+    /// [`UserId`]: crate::model::id::UserId
+    /// [`users`]: Self::users
     ///
     /// # Examples
     ///
@@ -891,6 +885,12 @@ impl Cache {
         self.categories.read().await.len()
     }
 
+    /// Returns the optional category ID of a channel.
+    #[inline]
+    pub async fn channel_category_id(&self, channel_id: ChannelId) -> Option<ChannelId> {
+        self.categories.read().await.get(&channel_id).map(|category| category.id)
+    }
+
     /// This method clones and returns the user used by the bot.
     #[inline]
     pub async fn current_user(&self) -> CurrentUser {
@@ -919,9 +919,10 @@ impl Cache {
     /// # }
     /// ```
     #[inline]
-    pub async fn current_user_field<Ret: Clone, Fun>(&self,
-        field_selector: Fun) -> Ret
-    where Fun: FnOnce(&CurrentUser) -> Ret {
+    pub async fn current_user_field<Ret: Clone, Fun>(&self, field_selector: Fun) -> Ret
+    where
+        Fun: FnOnce(&CurrentUser) -> Ret,
+    {
         let user = self.user.read().await;
 
         field_selector(&user)
@@ -936,8 +937,8 @@ impl Cache {
     ///
     /// Refer to the [`CacheUpdate` examples].
     ///
-    /// [`CacheUpdate`]: trait.CacheUpdate.html
-    /// [`CacheUpdate` examples]: trait.CacheUpdate.html#examples
+    /// [`CacheUpdate`]: CacheUpdate
+    /// [`CacheUpdate` examples]: CacheUpdate#examples
     #[instrument(skip(self, e))]
     pub async fn update<E: CacheUpdate>(&self, e: &mut E) -> Option<E::Output> {
         e.update(self).await
@@ -976,9 +977,11 @@ impl Default for Cache {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use chrono::{DateTime, Utc};
     use serde_json::{Number, Value};
-    use std::collections::HashMap;
+
     use crate::{
         cache::{Cache, CacheUpdate, Settings},
         model::prelude::*,
@@ -988,14 +991,13 @@ mod test {
     async fn test_cache_messages() {
         let mut settings = Settings::new();
         settings.max_messages(2);
-        let mut cache = Cache::new_with_settings(settings);
+        let cache = Cache::new_with_settings(settings);
 
         // Test inserting one message into a channel's message cache.
-        let datetime = DateTime::parse_from_str(
-            "1983 Apr 13 12:09:14.274 +0000",
-            "%Y %b %d %H:%M:%S%.3f %z",
-        ).unwrap()
-        .with_timezone(&Utc);
+        let datetime =
+            DateTime::parse_from_str("1983 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
+                .unwrap()
+                .with_timezone(&Utc);
         let mut event = MessageCreateEvent {
             message: Message {
                 id: MessageId(3),
@@ -1006,7 +1008,6 @@ mod test {
                     bot: false,
                     discriminator: 1,
                     name: "user 1".to_owned(),
-                    _nonexhaustive: (),
                 },
                 channel_id: ChannelId(2),
                 guild_id: Some(GuildId(1)),
@@ -1022,35 +1023,35 @@ mod test {
                 nonce: Value::Number(Number::from(1)),
                 pinned: false,
                 reactions: vec![],
-                timestamp: datetime.clone(),
+                timestamp: datetime,
                 tts: false,
                 webhook_id: None,
                 activity: None,
                 application: None,
                 message_reference: None,
                 flags: None,
+                stickers: vec![],
                 referenced_message: None,
-                _nonexhaustive: (),
             },
-            _nonexhaustive: (),
         };
+
         // Check that the channel cache doesn't exist.
         assert!(!cache.messages.read().await.contains_key(&event.message.channel_id));
         // Add first message, none because message ID 2 doesn't already exist.
-        assert!(event.update(&mut cache).await.is_none());
+        assert!(event.update(&cache).await.is_none());
         // None, it only returns the oldest message if the cache was already full.
-        assert!(event.update(&mut cache).await.is_none());
+        assert!(event.update(&cache).await.is_none());
         // Assert there's only 1 message in the channel's message cache.
         assert_eq!(cache.messages.read().await.get(&event.message.channel_id).unwrap().len(), 1);
 
         // Add a second message, assert that channel message cache length is 2.
         event.message.id = MessageId(4);
-        assert!(event.update(&mut cache).await.is_none());
+        assert!(event.update(&cache).await.is_none());
         assert_eq!(cache.messages.read().await.get(&event.message.channel_id).unwrap().len(), 2);
 
         // Add a third message, the first should now be removed.
         event.message.id = MessageId(5);
-        assert!(event.update(&mut cache).await.is_some());
+        assert!(event.update(&cache).await.is_some());
 
         {
             let messages = cache.messages.read().await;
@@ -1076,14 +1077,12 @@ mod test {
             user_limit: None,
             nsfw: false,
             slow_mode_rate: Some(0),
-            _nonexhaustive: (),
         };
 
         // Add a channel delete event to the cache, the cached messages for that
         // channel should now be gone.
         let mut delete = ChannelDeleteEvent {
             channel: Channel::Guild(guild_channel.clone()),
-            _nonexhaustive: (),
         };
         assert!(cache.update(&mut delete).await.is_none());
         assert!(!cache.messages.read().await.contains_key(&delete.channel.id()));
@@ -1126,9 +1125,7 @@ mod test {
                     banner: None,
                     vanity_url_code: Some("bruhmoment".to_string()),
                     preferred_locale: "en-US".to_string(),
-                    _nonexhaustive: (),
                 },
-                _nonexhaustive: (),
             }
         };
         assert!(cache.update(&mut guild_create).await.is_none());
@@ -1139,7 +1136,6 @@ mod test {
                 id: GuildId(1),
                 unavailable: false,
             },
-            _nonexhaustive: (),
         };
 
         // The guild existed in the cache, so the cache's guild is returned by the

@@ -1,14 +1,15 @@
-use crate::internal::prelude::*;
-use crate::CacheAndHttp;
-use tokio::time::timeout;
-use tokio::sync::{Mutex, RwLock};
 use std::{
     collections::{HashMap, VecDeque},
     sync::Arc,
 };
-use futures::channel::mpsc::{self, UnboundedSender as Sender, UnboundedReceiver as Receiver};
+
+use futures::channel::mpsc::{self, UnboundedReceiver as Receiver, UnboundedSender as Sender};
 use futures::StreamExt;
-use crate::client::{EventHandler, RawEventHandler};
+use tokio::sync::{Mutex, RwLock};
+use tokio::time::timeout;
+use tracing::{info, instrument, warn};
+use typemap_rev::TypeMap;
+
 use super::{
     GatewayIntents,
     ShardId,
@@ -18,13 +19,13 @@ use super::{
     ShardQueuerMessage,
     ShardRunnerInfo,
 };
-use tracing::{info, warn, instrument};
-
-use typemap_rev::TypeMap;
-#[cfg(feature = "framework")]
-use crate::framework::Framework;
 #[cfg(feature = "voice")]
 use crate::client::bridge::voice::VoiceGatewayManager;
+use crate::client::{EventHandler, RawEventHandler};
+#[cfg(feature = "framework")]
+use crate::framework::Framework;
+use crate::internal::prelude::*;
+use crate::CacheAndHttp;
 
 /// A manager for handling the status of shards by starting them, restarting
 /// them, and stopping them when required.
@@ -91,7 +92,7 @@ use crate::client::bridge::voice::VoiceGatewayManager;
 /// # }
 /// ```
 ///
-/// [`Client`]: ../../struct.Client.html
+/// [`Client`]: crate::Client
 #[derive(Debug)]
 pub struct ShardManager {
     monitor_tx: Sender<ShardManagerMessage>,
@@ -173,8 +174,6 @@ impl ShardManager {
     ///
     /// This will communicate shard boots with the [`ShardQueuer`] so that they
     /// are properly queued.
-    ///
-    /// [`ShardQueuer`]: struct.ShardQueuer.html
     #[instrument(skip(self))]
     pub fn initialize(&mut self) -> Result<()> {
         let shard_to = self.shard_index + self.shard_init;
@@ -235,9 +234,8 @@ impl ShardManager {
     /// # }
     /// ```
     ///
-    /// [`ShardQueuer`]: struct.ShardQueuer.html
-    /// [`ShardRunner`]: struct.ShardRunner.html
-    /// [`initialize`]: #method.initialize
+    /// [`ShardRunner`]: super::ShardRunner
+    /// [`initialize`]: Self::initialize
     #[instrument(skip(self))]
     pub async fn restart(&mut self, shard_id: ShardId) {
         info!("Restarting shard {}", shard_id);
@@ -251,8 +249,7 @@ impl ShardManager {
     /// Returns the [`ShardId`]s of the shards that have been instantiated and
     /// currently have a valid [`ShardRunner`].
     ///
-    /// [`ShardId`]: struct.ShardId.html
-    /// [`ShardRunner`]: struct.ShardRunner.html
+    /// [`ShardRunner`]: super::ShardRunner
     #[instrument(skip(self))]
     pub async fn shards_instantiated(&self) -> Vec<ShardId> {
         self.runners.lock().await.keys().cloned().collect()
@@ -276,19 +273,18 @@ impl ShardManager {
 
         const TIMEOUT: tokio::time::Duration = tokio::time::Duration::from_secs(5);
         match timeout(TIMEOUT, self.shard_shutdown.next()).await {
-            Ok(Some(shutdown_shard_id)) =>
+            Ok(Some(shutdown_shard_id)) => {
                 if shutdown_shard_id != shard_id {
                     warn!(
                         "Failed to cleanly shutdown shard {}: Shutdown channel sent incorrect ID",
                         shard_id,
                     );
-                },
+                }
+            },
             Ok(None) => (),
-            Err(why) => warn!(
-                "Failed to cleanly shutdown shard {}, reached timeout: {:?}",
-                shard_id,
-                why,
-            ),
+            Err(why) => {
+                warn!("Failed to cleanly shutdown shard {}, reached timeout: {:?}", shard_id, why,)
+            },
         }
 
         self.runners.lock().await.remove(&shard_id);
@@ -300,7 +296,7 @@ impl ShardManager {
     /// If you only need to shutdown a select number of shards, prefer looping
     /// over the [`shutdown`] method.
     ///
-    /// [`shutdown`]: #method.shutdown
+    /// [`shutdown`]: Self::shutdown
     #[instrument(skip(self))]
     pub async fn shutdown_all(&mut self) {
         let keys = {
@@ -338,8 +334,7 @@ impl Drop for ShardManager {
     /// This shuts down all active [`ShardRunner`]s and attempts to tell the
     /// [`ShardQueuer`] to shutdown.
     ///
-    /// [`ShardQueuer`]: struct.ShardQueuer.html
-    /// [`ShardRunner`]: struct.ShardRunner.html
+    /// [`ShardRunner`]: super::ShardRunner
     fn drop(&mut self) {
         let _ = self.shard_queuer.unbounded_send(ShardQueuerMessage::Shutdown);
         let _ = self.monitor_tx.unbounded_send(ShardManagerMessage::ShutdownInitiated);

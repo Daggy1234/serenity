@@ -1,27 +1,23 @@
 //! Models about OAuth2 applications.
 
-use super::{
-    id::UserId,
-    user::User,
-    utils::*,
-};
 use std::fmt;
+
+use super::{id::UserId, user::User, utils::*};
 
 /// Information about a user's application. An application does not necessarily
 /// have an associated bot user.
 #[derive(Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct ApplicationInfo {
     /// The bot user associated with the application. See [`BotApplication`] for
     /// more information.
-    ///
-    /// [`BotApplication`]: struct.BotApplication.html
     pub bot: Option<BotApplication>,
     /// Indicator of whether the bot is public.
     ///
     /// If a bot is public, anyone may invite it to their [`Guild`]. While a bot
     /// is private, only the owner may add it to a guild.
     ///
-    /// [`Guild`]: ../guild/struct.Guild.html
+    /// [`Guild`]: super::guild::Guild
     #[serde(default = "default_true")]
     pub bot_public: bool,
     /// Indicator of whether the bot requires an OAuth2 code grant.
@@ -49,8 +45,6 @@ pub struct ApplicationInfo {
     ///
     /// This is not equivalent to the application's bot user's token.
     pub secret: String,
-    #[serde(skip)]
-    pub(crate) _nonexhaustive: (),
 }
 
 impl fmt::Debug for ApplicationInfo {
@@ -73,6 +67,7 @@ impl fmt::Debug for ApplicationInfo {
 
 /// Information about an application with an application's bot user.
 #[derive(Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct BotApplication {
     /// The unique Id of the bot user.
     pub id: UserId,
@@ -95,10 +90,7 @@ pub struct BotApplication {
     /// **Note**: Keep this information private, as untrusted sources can use it
     /// to perform any action with a bot user.
     pub token: String,
-    #[serde(skip)]
-    pub(crate) _nonexhaustive: (),
 }
-
 
 impl fmt::Debug for BotApplication {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -112,20 +104,32 @@ impl fmt::Debug for BotApplication {
     }
 }
 
+/// Partial information about the given application.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PartialCurrentApplicationInfo {
+    /// The unique Id of the user.
+    pub id: UserId,
+    /// The flags associated with the application.
+    ///
+    /// These flags are unknown and are not yet documented in the Discord API
+    /// documentation.
+    pub flags: u64,
+}
+
 /// Information about the current application and its owner.
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct CurrentApplicationInfo {
     pub description: String,
     pub icon: Option<String>,
     pub id: UserId,
     pub name: String,
     pub owner: User,
-    #[serde(default)] pub rpc_origins: Vec<String>,
+    #[serde(default)]
+    pub rpc_origins: Vec<String>,
     pub bot_public: bool,
     pub bot_require_code_grant: bool,
     pub team: Option<Team>,
-    #[serde(skip)]
-    pub(crate) _nonexhaustive: (),
 }
 
 /// Information about the Team group of the application.
@@ -164,9 +168,7 @@ pub enum MembershipState {
     Accepted = 2,
 }
 
-enum_number!(
-    MembershipState {
-        Invited,
-        Accepted,
-    }
-);
+enum_number!(MembershipState {
+    Invited,
+    Accepted,
+});

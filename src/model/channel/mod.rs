@@ -1,43 +1,44 @@
 //! Models relating to channels and types within channels.
 
 mod attachment;
+mod channel_category;
 mod channel_id;
 mod embed;
 mod guild_channel;
 mod message;
 mod private_channel;
 mod reaction;
-mod channel_category;
+mod sticker;
+
+#[cfg(feature = "model")]
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
+#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
+use async_trait::async_trait;
+use serde::de::Error as DeError;
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 pub use self::attachment::*;
+pub use self::channel_category::*;
 pub use self::channel_id::*;
 pub use self::embed::*;
 pub use self::guild_channel::*;
 pub use self::message::*;
 pub use self::private_channel::*;
 pub use self::reaction::*;
-pub use self::channel_category::*;
-
-use crate::model::prelude::*;
-use serde::de::Error as DeError;
-use serde::ser::{SerializeStruct, Serialize, Serializer};
+pub use self::sticker::*;
 use super::utils::deserialize_u64;
-
-#[cfg(feature = "model")]
-use std::fmt::{Display, Formatter, Result as FmtResult};
-
-#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
-use crate::cache::FromStrAndCache;
-#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
-use crate::model::misc::ChannelParseError;
-#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
-use crate::utils::parse_channel;
 #[cfg(all(feature = "cache", feature = "model"))]
 use crate::cache::Cache;
 #[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
-use async_trait::async_trait;
+use crate::cache::FromStrAndCache;
 #[cfg(feature = "model")]
 use crate::http::CacheHttp;
+#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
+use crate::model::misc::ChannelParseError;
+use crate::model::prelude::*;
+#[cfg(all(feature = "cache", feature = "model", feature = "utils"))]
+use crate::utils::parse_channel;
 
 /// A container for any channel.
 #[derive(Clone, Debug)]
@@ -45,18 +46,13 @@ use crate::http::CacheHttp;
 pub enum Channel {
     /// A [text] or [voice] channel within a [`Guild`].
     ///
-    /// [`Guild`]: ../guild/struct.Guild.html
-    /// [text]: enum.ChannelType.html#variant.Text
-    /// [voice]: enum.ChannelType.html#variant.Voice
+    /// [text]: ChannelType::Text
+    /// [voice]: ChannelType::Voice
     Guild(GuildChannel),
     /// A private channel to another [`User`]. No other users may access the
     /// channel. For multi-user "private channels", use a group.
-    ///
-    /// [`User`]: ../user/struct.User.html
     Private(PrivateChannel),
     /// A category of [`GuildChannel`]s
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
     Category(ChannelCategory),
 }
 
@@ -200,9 +196,6 @@ impl Channel {
 
     /// Retrieves the Id of the inner [`GuildChannel`], or
     /// [`PrivateChannel`].
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
-    /// [`PrivateChannel`]: struct.PrivateChannel.html
     #[inline]
     pub fn id(&self) -> ChannelId {
         match self {
@@ -216,15 +209,12 @@ impl Channel {
     /// [`ChannelCategory`].
     ///
     /// If other channel types are used it will return None.
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
-    /// [`CategoryChannel`]: struct.ChannelCategory.html
     #[inline]
     pub fn position(&self) -> Option<i64> {
         match self {
             Channel::Guild(channel) => Some(channel.position),
             Channel::Category(catagory) => Some(catagory.position),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -255,7 +245,9 @@ impl<'de> Deserialize<'de> for Channel {
 
 impl Serialize for Channel {
     fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
-        where S: Serializer {
+    where
+        S: Serializer,
+    {
         match self {
             Channel::Category(c) => ChannelCategory::serialize(c, serializer),
             Channel::Guild(c) => GuildChannel::serialize(c, serializer),
@@ -272,9 +264,6 @@ impl Display for Channel {
     /// - [`PrivateChannel`]s: the recipient's name;
     /// - [`GuildChannel`]s: a string mentioning the channel that users who can
     /// see the channel can click on.
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
-    /// [`PrivateChannel`]: struct.PrivateChannel.html
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Channel::Guild(ch) => Display::fmt(&ch.id.mention(), f),
@@ -289,45 +278,31 @@ impl Display for Channel {
 #[non_exhaustive]
 pub enum ChannelType {
     /// An indicator that the channel is a text [`GuildChannel`].
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
     Text = 0,
     /// An indicator that the channel is a [`PrivateChannel`].
-    ///
-    /// [`PrivateChannel`]: struct.PrivateChannel.html
     Private = 1,
     /// An indicator that the channel is a voice [`GuildChannel`].
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
     Voice = 2,
     /// An indicator that the channel is the channel of a [`ChannelCategory`].
-    ///
-    /// [`ChannelCategory`]: struct.ChannelCategory.html
     Category = 4,
     /// An indicator that the channel is a `NewsChannel`.
     ///
     /// Note: `NewsChannel` is serialized into a [`GuildChannel`]
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
     News = 5,
     /// An indicator that the channel is a `StoreChannel`
     ///
     /// Note: `StoreChannel` is serialized into a [`GuildChannel`]
-    ///
-    /// [`GuildChannel`]: struct.GuildChannel.html
     Store = 6,
 }
 
-enum_number!(
-    ChannelType {
-        Text,
-        Private,
-        Voice,
-        Category,
-        News,
-        Store,
-    }
-);
+enum_number!(ChannelType {
+    Text,
+    Private,
+    Voice,
+    Category,
+    News,
+    Store,
+});
 
 impl ChannelType {
     #[inline]
@@ -359,8 +334,10 @@ impl ChannelType {
 struct PermissionOverwriteData {
     allow: Permissions,
     deny: Permissions,
-    #[serde(serialize_with = "serialize_u64", deserialize_with = "deserialize_u64")] id: u64,
-    #[serde(rename = "type")] kind: u8,
+    #[serde(serialize_with = "serialize_u64", deserialize_with = "deserialize_u64")]
+    id: u64,
+    #[serde(rename = "type")]
+    kind: u8,
 }
 
 /// A channel-specific permission overwrite for a member or role.
@@ -372,8 +349,9 @@ pub struct PermissionOverwrite {
 }
 
 impl<'de> Deserialize<'de> for PermissionOverwrite {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D)
-                                         -> StdResult<PermissionOverwrite, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> StdResult<PermissionOverwrite, D::Error> {
         let data = PermissionOverwriteData::deserialize(deserializer)?;
 
         let kind = match &data.kind {
@@ -392,7 +370,9 @@ impl<'de> Deserialize<'de> for PermissionOverwrite {
 
 impl Serialize for PermissionOverwrite {
     fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
-        where S: Serializer {
+    where
+        S: Serializer,
+    {
         let (id, kind) = match self.kind {
             PermissionOverwriteType::Role(id) => (id.0, 0),
             PermissionOverwriteType::Member(id) => (id.0, 1),
@@ -410,9 +390,7 @@ impl Serialize for PermissionOverwrite {
 
 /// The type of edit being made to a Channel's permissions.
 ///
-/// This is for use with methods such as `GuildChannel::create_permission`.
-///
-/// [`GuildChannel::create_permission`]: struct.GuildChannel.html#method.create_permission
+/// This is for use with methods such as [`GuildChannel::create_permission`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum PermissionOverwriteType {
@@ -444,7 +422,6 @@ mod test {
                 user_limit: None,
                 nsfw: false,
                 slow_mode_rate: Some(0),
-                _nonexhaustive: (),
             }
         }
 
@@ -460,9 +437,7 @@ mod test {
                     bot: false,
                     discriminator: 1,
                     name: "ab".to_string(),
-                    _nonexhaustive: (),
                 },
-                _nonexhaustive: (),
             }
         }
 
@@ -504,7 +479,8 @@ impl FromStrAndCache for Channel {
     type Err = ChannelParseError;
 
     async fn from_str<C>(cache: C, s: &str) -> StdResult<Self, Self::Err>
-        where C: AsRef<Cache> + Send + Sync
+    where
+        C: AsRef<Cache> + Send + Sync,
     {
         match parse_channel(s) {
             Some(x) => match ChannelId(x).to_channel_cached(&cache).await {

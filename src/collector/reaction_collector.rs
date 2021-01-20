@@ -1,28 +1,27 @@
 use std::{
     boxed::Box,
     future::Future,
-    sync::Arc,
-    time::Duration,
     pin::Pin,
+    sync::Arc,
     task::{Context as FutContext, Poll},
+    time::Duration,
 };
-use tokio::{
-    sync::mpsc::{
-        unbounded_channel,
-        UnboundedReceiver as Receiver,
-        UnboundedSender as Sender,
-    },
-    time::{Delay, delay_for},
-};
+
 use futures::{
     future::BoxFuture,
     stream::{Stream, StreamExt},
 };
-use crate::{
-    client::bridge::gateway::ShardMessenger,
-    model::channel::Reaction,
-    model::id::UserId,
+use tokio::sync::mpsc::{
+    unbounded_channel,
+    UnboundedReceiver as Receiver,
+    UnboundedSender as Sender,
 };
+#[cfg(all(feature = "tokio_compat", not(feature = "tokio")))]
+use tokio::time::{delay_for as sleep, Delay as Sleep};
+#[cfg(feature = "tokio")]
+use tokio::time::{sleep, Sleep};
+
+use crate::{client::bridge::gateway::ShardMessenger, model::channel::Reaction, model::id::UserId};
 
 macro_rules! impl_reaction_collector {
     ($($name:ident;)*) => {
@@ -76,7 +75,7 @@ macro_rules! impl_reaction_collector {
                 }
 
                 /// Sets the guild in which the reaction must occur.
-                /// If a reaction is not on a message with this ID, it won't be received.
+                /// If a reaction is not on a message with this guild ID, it won't be received.
                 pub fn guild_id(mut self, guild_id: impl Into<u64>) -> Self {
                     self.filter.as_mut().unwrap().guild_id = Some(guild_id.into());
 
@@ -84,7 +83,7 @@ macro_rules! impl_reaction_collector {
                 }
 
                 /// Sets the channel on which the reaction must occur.
-                /// If a reaction is not on a message with this ID, it won't be received.
+                /// If a reaction is not on a message with this channel ID, it won't be received.
                 pub fn channel_id(mut self, channel_id: impl Into<u64>) -> Self {
                     self.filter.as_mut().unwrap().channel_id = Some(channel_id.into());
 
@@ -112,7 +111,7 @@ macro_rules! impl_reaction_collector {
                 /// Sets a `duration` for how long the collector shall receive
                 /// reactions.
                 pub fn timeout(mut self, duration: Duration) -> Self {
-                    self.timeout = Some(delay_for(duration));
+                    self.timeout = Some(Box::pin(sleep(duration)));
 
                     self
                 }
@@ -198,32 +197,38 @@ impl ReactionFilter {
     /// be sent by a specific author or in a specifc guild.
     fn is_passing_constraints(&self, reaction: &Arc<ReactionAction>) -> bool {
         let reaction = match **reaction {
-            ReactionAction::Added(ref reaction) => if self.options.accept_added {
-                reaction
-            } else {
-                return false;
+            ReactionAction::Added(ref reaction) => {
+                if self.options.accept_added {
+                    reaction
+                } else {
+                    return false;
+                }
             },
-            ReactionAction::Removed(ref reaction) => if self.options.accept_removed {
-                reaction
-            } else {
-                return false;
+            ReactionAction::Removed(ref reaction) => {
+                if self.options.accept_removed {
+                    reaction
+                } else {
+                    return false;
+                }
             },
         };
 
-        self.options.guild_id.map_or(true, |id| { Some(id) == reaction.guild_id.map(|g| g.0) })
-        && self.options.message_id.map_or(true, |id| { id == reaction.message_id.0 })
-        && self.options.channel_id.map_or(true, |id| { id == reaction.channel_id.0 })
-        && self.options.author_id.map_or(true, |id| { id == reaction.user_id.unwrap_or(UserId(0)).0 })
-        && self.options.filter.as_ref().map_or(true, |f| f(&reaction))
+        self.options.guild_id.map_or(true, |id| Some(id) == reaction.guild_id.map(|g| g.0))
+            && self.options.message_id.map_or(true, |id| id == reaction.message_id.0)
+            && self.options.channel_id.map_or(true, |id| id == reaction.channel_id.0)
+            && self
+                .options
+                .author_id
+                .map_or(true, |id| id == reaction.user_id.unwrap_or(UserId(0)).0)
+            && self.options.filter.as_ref().map_or(true, |f| f(&reaction))
     }
-
 
     /// Checks if the filter is within set receive and collect limits.
     /// A reaction is considered *received* even when it does not meet the
     /// constraints.
     fn is_within_limits(&self) -> bool {
-        self.options.filter_limit.map_or(true, |limit| { self.filtered < limit })
-        && self.options.collect_limit.map_or(true, |limit| { self.collected < limit })
+        self.options.filter_limit.map_or(true, |limit| self.filtered < limit)
+            && self.options.collect_limit.map_or(true, |limit| self.collected < limit)
     }
 }
 
@@ -267,7 +272,7 @@ impl_reaction_collector! {
 pub struct ReactionCollectorBuilder<'a> {
     filter: Option<FilterOptions>,
     shard: Option<ShardMessenger>,
-    timeout: Option<Delay>,
+    timeout: Option<Pin<Box<Sleep>>>,
     fut: Option<BoxFuture<'a, ReactionCollector>>,
 }
 
@@ -296,7 +301,7 @@ impl<'a> Future for ReactionCollectorBuilder<'a> {
 
                 ReactionCollector {
                     receiver: Box::pin(receiver),
-                    timeout: timeout.map(Box::pin),
+                    timeout,
                 }
             }))
         }
@@ -308,7 +313,7 @@ impl<'a> Future for ReactionCollectorBuilder<'a> {
 pub struct CollectReaction<'a> {
     filter: Option<FilterOptions>,
     shard: Option<ShardMessenger>,
-    timeout: Option<Delay>,
+    timeout: Option<Pin<Box<Sleep>>>,
     fut: Option<BoxFuture<'a, Option<Arc<ReactionAction>>>>,
 }
 
@@ -337,8 +342,10 @@ impl<'a> Future for CollectReaction<'a> {
 
                 ReactionCollector {
                     receiver: Box::pin(receiver),
-                    timeout: timeout.map(Box::pin),
-                }.next().await
+                    timeout,
+                }
+                .next()
+                .await
             }))
         }
 
@@ -362,7 +369,7 @@ impl std::fmt::Debug for FilterOptions {
 /// set duration.
 pub struct ReactionCollector {
     receiver: Pin<Box<Receiver<Arc<ReactionAction>>>>,
-    timeout: Option<Pin<Box<Delay>>>,
+    timeout: Option<Pin<Box<Sleep>>>,
 }
 
 impl ReactionCollector {
@@ -379,7 +386,6 @@ impl Stream for ReactionCollector {
     type Item = Arc<ReactionAction>;
     fn poll_next(mut self: Pin<&mut Self>, ctx: &mut FutContext<'_>) -> Poll<Option<Self::Item>> {
         if let Some(ref mut timeout) = self.timeout {
-
             match timeout.as_mut().poll(ctx) {
                 Poll::Ready(_) => {
                     return Poll::Ready(None);
@@ -388,7 +394,7 @@ impl Stream for ReactionCollector {
             }
         }
 
-        self.receiver.as_mut().poll_next(ctx)
+        self.receiver.as_mut().poll_recv(ctx)
     }
 }
 

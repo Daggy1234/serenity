@@ -1,24 +1,21 @@
-use flate2::read::ZlibDecoder;
-use crate::gateway::{GatewayError, WsStream};
-use crate::internal::prelude::*;
-use async_tungstenite::tungstenite::Message;
-use async_trait::async_trait;
-use tracing::{warn, instrument};
-use futures::{SinkExt, StreamExt, TryStreamExt};
-use tokio::time::timeout;
-
-#[cfg(all(feature = "rustls_backend", not(feature = "native_tls_backend")))]
+#[cfg(all(feature = "rustls_backend_marker", not(feature = "native_tls_backend_marker")))]
 use std::{
     error::Error as StdError,
-    fmt::{
-        Display,
-        Formatter,
-        Result as FmtResult,
-    },
+    fmt::{Display, Formatter, Result as FmtResult},
     io::Error as IoError,
 };
-use url::Url;
+
+use async_trait::async_trait;
+use async_tungstenite::tungstenite::Message;
+use flate2::read::ZlibDecoder;
 use futures::stream::SplitSink;
+use futures::{SinkExt, StreamExt, TryStreamExt};
+use tokio::time::timeout;
+use tracing::{instrument, warn};
+use url::Url;
+
+use crate::gateway::{GatewayError, WsStream};
+use crate::internal::prelude::*;
 
 #[async_trait]
 pub trait ReceiverExt {
@@ -76,21 +73,15 @@ impl SenderExt for WsStream {
 pub(crate) fn convert_ws_message(message: Option<Message>) -> Result<Option<Value>> {
     Ok(match message {
         Some(Message::Binary(bytes)) => {
-            serde_json::from_reader(ZlibDecoder::new(&bytes[..]))
-                .map(Some)
-                .map_err(|why| {
-                    warn!("Err deserializing bytes: {:?}; bytes: {:?}", why, bytes);
+            serde_json::from_reader(ZlibDecoder::new(&bytes[..])).map(Some).map_err(|why| {
+                warn!("Err deserializing bytes: {:?}; bytes: {:?}", why, bytes);
 
-                    why
-                })?
+                why
+            })?
         },
         Some(Message::Text(payload)) => {
             serde_json::from_str(&payload).map(Some).map_err(|why| {
-                warn!(
-                    "Err deserializing text: {:?}; text: {}",
-                    why,
-                    payload,
-                );
+                warn!("Err deserializing text: {:?}; text: {}", why, payload,);
 
                 why
             })?
@@ -106,7 +97,7 @@ pub(crate) fn convert_ws_message(message: Option<Message>) -> Result<Option<Valu
 /// An error that occured while connecting over rustls
 #[derive(Debug)]
 #[non_exhaustive]
-#[cfg(all(feature = "rustls_backend", not(feature = "native_tls_backend")))]
+#[cfg(all(feature = "rustls_backend_marker", not(feature = "native_tls_backend_marker")))]
 pub enum RustlsError {
     /// WebPKI X.509 Certificate Validation Error.
     WebPKI,
@@ -116,25 +107,27 @@ pub enum RustlsError {
     Io(IoError),
 }
 
-#[cfg(all(feature = "rustls_backend", not(feature = "native_tls_backend")))]
+#[cfg(all(feature = "rustls_backend_marker", not(feature = "native_tls_backend_marker")))]
 impl From<IoError> for RustlsError {
     fn from(e: IoError) -> Self {
         RustlsError::Io(e)
     }
 }
 
-#[cfg(all(feature = "rustls_backend", not(feature = "native_tls_backend")))]
+#[cfg(all(feature = "rustls_backend_marker", not(feature = "native_tls_backend_marker")))]
 impl Display for RustlsError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             RustlsError::WebPKI => f.write_str("Failed to validate X.509 certificate"),
-            RustlsError::HandshakeError => f.write_str("TLS handshake failed when making the websocket connection"),
+            RustlsError::HandshakeError => {
+                f.write_str("TLS handshake failed when making the websocket connection")
+            },
             RustlsError::Io(inner) => Display::fmt(&inner, f),
         }
     }
 }
 
-#[cfg(all(feature = "rustls_backend", not(feature = "native_tls_backend")))]
+#[cfg(all(feature = "rustls_backend_marker", not(feature = "native_tls_backend_marker")))]
 impl StdError for RustlsError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
@@ -144,7 +137,7 @@ impl StdError for RustlsError {
     }
 }
 
-#[cfg(all(feature = "rustls_backend", not(feature = "native_tls_backend")))]
+#[cfg(all(feature = "rustls_backend_marker", not(feature = "native_tls_backend_marker")))]
 #[instrument]
 pub(crate) async fn create_rustls_client(url: Url) -> Result<WsStream> {
     let (stream, _) = async_tungstenite::tokio::connect_async_with_config::<Url>(
@@ -153,14 +146,15 @@ pub(crate) async fn create_rustls_client(url: Url) -> Result<WsStream> {
             max_message_size: None,
             max_frame_size: None,
             max_send_queue: None,
-        }))
-        .await
-        .map_err(|_| RustlsError::HandshakeError)?;
+        }),
+    )
+    .await
+    .map_err(|_| RustlsError::HandshakeError)?;
 
     Ok(stream)
 }
 
-#[cfg(feature = "native_tls_backend")]
+#[cfg(feature = "native_tls_backend_marker")]
 #[instrument]
 pub(crate) async fn create_native_tls_client(url: Url) -> Result<WsStream> {
     let (stream, _) = async_tungstenite::tokio::connect_async_with_config::<Url>(
@@ -169,8 +163,9 @@ pub(crate) async fn create_native_tls_client(url: Url) -> Result<WsStream> {
             max_message_size: None,
             max_frame_size: None,
             max_send_queue: None,
-        }))
-        .await?;
+        }),
+    )
+    .await?;
 
     Ok(stream)
 }

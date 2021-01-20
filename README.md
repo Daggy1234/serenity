@@ -1,4 +1,4 @@
-[![ci-badge][]][ci] [![docs-badge][]][docs] [![guild-badge][]][guild] [![crates.io version]][crates.io link] [![rust 1.43.0+ badge]][rust 1.43.0+ link]
+[![ci-badge][]][ci] [![docs-badge][]][docs] [![guild-badge][]][guild] [![crates.io version]][crates.io link] [![rust 1.48.0+ badge]][rust 1.48.0+ link]
 
 # serenity
 
@@ -101,10 +101,10 @@ Add the following to your `Cargo.toml` file:
 
 ```toml
 [dependencies]
-serenity = "0.9"
+serenity = "0.10"
 ```
 
-Serenity supports a minimum of Rust 1.43.
+Serenity supports a minimum of Rust 1.48.
 
 # Features
 
@@ -115,11 +115,20 @@ Cargo.toml:
 [dependencies.serenity]
 default-features = false
 features = ["pick", "your", "feature", "names", "here"]
-version = "0.9"
+version = "0.10"
 ```
 
 The default features are: `builder`, `cache`, `client`, `framework`, `gateway`,
 `http`, `model`, `standard_framework`, `utils`, and `rustls_backend`.
+
+There are these alternative default features, they require to set `default-features = false`:
+
+- **default_tokio_0_2**: Uses the default backend with `tokio` version `0.2`.
+- **default_native_tls**: Uses `native_tls_backend` instead of the default `rustls_backend`.
+- **default_native_tls_tokio_0_2**: Uses `native_tls_backend` with `tokio` version `0.2`.
+- **default_no_backend**: Excludes the default backend, pick your own backend instead.
+
+If you are unsure which to pick, use the default features by not setting `default-features = false`.
 
 The following is a full list of features:
 
@@ -148,6 +157,7 @@ instead of `rustls_backend`.
 ratelimits, or use the interval given by Discord that might be less efficient
 due to latency in the network. If you turn this feature on, it is recommended to
 synchronise your clock with an NTP server (such as Google's).
+- **unstable_discord_api**: Enables features of the Discord API that do not have a stable interface. The features might not have official documentation or are subject to change.
 
 Serenity offers two TLS-backends, `rustls_backend` by default, you need to pick
 one if you do not use the default features:
@@ -157,6 +167,10 @@ TLS implementation.
 - **native_tls_backend**: Uses SChannel on Windows, Secure Transport on macOS,
 and OpenSSL on other platforms.
 
+If you need to use `tokio` version `0.2` use the backends below:
+
+- **rustls_tokio_0_2_backend**: Combines **rustls_backend** with `tokio` version `0.2`.
+- **native_tls_tokio_0_2_backend**: Combines **native_tls_backend** with `tokio` version `0.2`.
 
 If you want all of the default features except for `cache` for example, you can
 list all but that:
@@ -175,7 +189,7 @@ features = [
     "utils",
     "rustls_backend",
 ]
-version = "0.9"
+version = "0.10"
 ```
 
 # Dependencies
@@ -217,5 +231,5 @@ If you use the `native_tls_backend` and you are not developing on macOS or Windo
 [repo:lavalink]: https://github.com/Frederikam/Lavalink
 [repo:lavaplayer]: https://github.com/sedmelluq/lavaplayer
 [logo]: https://raw.githubusercontent.com/serenity-rs/serenity/current/logo.png
-[rust 1.43.0+ badge]: https://img.shields.io/badge/rust-1.43.0+-93450a.svg?style=flat-square
-[rust 1.43.0+ link]: https://blog.rust-lang.org/2020/04/23/Rust-1.43.0.html
+[rust 1.48.0+ badge]: https://img.shields.io/badge/rust-1.48.0+-93450a.svg?style=flat-square
+[rust 1.48.0+ link]: https://blog.rust-lang.org/2020/11/19/Rust-1.48.html
